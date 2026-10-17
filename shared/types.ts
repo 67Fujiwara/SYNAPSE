@@ -1,0 +1,104 @@
+// Types shared between the web app (src/) and the Worker (worker/).
+// Dates are ISO-8601 strings in UTC; convert to local time only for display.
+
+export type Mode = 'daily' | 'business' | 'mywork' | 'free';
+export type Immersion = 'high' | 'medium' | 'low';
+export type UiLang = 'en' | 'ja';
+
+export interface Turn {
+  id: string;
+  sessionId: string;
+  role: 'user' | 'ai';
+  text: string;
+  startedAt: string;
+  endedAt: string;
+}
+
+export interface SessionMetrics {
+  speakingSec: number;
+  words: number;
+  wpm: number;
+  fillerRate: number; // fillers per 100 words
+  errorRate: number; // review corrections per 100 words (0 until Phase 2)
+  uniqueWords: number;
+  avgSentLen: number;
+  avgLatencySec: number; // AI speech end -> user speech start
+  jpHintCount: number;
+}
+
+export interface Session extends SessionMetrics {
+  id: string;
+  mode: Mode;
+  scenario?: string | null;
+  startedAt: string;
+  endedAt: string;
+  xp: number;
+}
+
+export interface SessionPayload {
+  session: Session;
+  turns: Turn[];
+}
+
+export interface DailyStat {
+  date: string; // YYYY-MM-DD (local date of the user when the session ended)
+  speakingSec: number;
+  words: number;
+  sessions: number;
+  missionDone: number;
+}
+
+export interface StatsResponse {
+  today: DailyStat;
+  streak: number;
+  days: DailyStat[]; // ascending, last N days (zero-filled)
+  totals: { sessions: number; speakingSec: number; words: number };
+  recent: Session[];
+}
+
+export interface Settings {
+  uiLang: UiLang;
+  immersion: Immersion;
+  voice: string; // SpeechSynthesis voice name ('' = auto)
+  rate: number; // TTS rate 0.7..1.3
+  silenceSec: number; // auto-send after this much silence
+  manualSend: boolean;
+  dailyGoalMin: number;
+  chatModel: string;
+  reviewModel: string;
+  saveRecordings: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  uiLang: 'en',
+  immersion: 'high',
+  voice: '',
+  rate: 1.0,
+  silenceSec: 1.2,
+  manualSend: false,
+  dailyGoalMin: 10,
+  chatModel: 'claude-sonnet-5-5',
+  reviewModel: 'claude-opus-5-5',
+  saveRecordings: false,
+};
+
+// ---- /api/chat --------------------------------------------------------------
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatRequest {
+  mode: Mode;
+  immersion: Immersion;
+  scenario?: string; // My Work: generated scenario text
+  model?: string;
+  messages: ChatMessage[];
+}
+
+/** SSE events emitted by /api/chat. `data:` is JSON of one of these. */
+export type ChatEvent =
+  | { type: 'text'; text: string }
+  | { type: 'done'; stopReason: string | null; model: string }
+  | { type: 'error'; message: string };

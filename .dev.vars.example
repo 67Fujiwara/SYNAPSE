@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `wrangler dev` (git-ignored).
+ANTHROPIC_API_KEY=sk-ant-...
+# Any long random string. The web app sends it as `Authorization: Bearer <APP_TOKEN>`.
+APP_TOKEN=change-me-to-a-long-random-string

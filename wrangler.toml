@@ -1,0 +1,34 @@
+# SYNAPSE — Cloudflare Worker (API) configuration
+name = "synapse-api"
+main = "worker/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Local dev: `wrangler dev` emulates D1/R2 on disk under .wrangler/ — no --remote needed.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "synapse-db"
+# Replace after `wrangler d1 create synapse-db` (any value works for local dev).
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "synapse-storage"
+
+[vars]
+# Non-secret defaults. Override per environment if needed.
+DEFAULT_CHAT_MODEL = "claude-sonnet-5-5"
+DEFAULT_REVIEW_MODEL = "claude-opus-5-5"
+
+# Secrets (never commit):
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put APP_TOKEN
+# For local dev put them in .dev.vars (see .dev.vars.example).
+
+# Prompts live as Markdown files so they can be edited without touching code.
+[[rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
