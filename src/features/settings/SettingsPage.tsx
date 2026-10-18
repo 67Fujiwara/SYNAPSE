@@ -45,7 +45,10 @@ export function SettingsPage() {
     setConn('…');
     try {
       const h = await api.health();
-      setConn(h.hasKey ? t('settings.token.ok') : t('settings.token.noKey'));
+      if (h.keyStatus === 'ok') setConn(t('settings.token.ok'));
+      else if (h.keyStatus === 'missing') setConn(t('settings.token.noKey'));
+      else if (h.keyStatus === 'invalid') setConn(t('settings.token.keyInvalid', { hint: h.keyHint }));
+      else setConn(t('settings.token.keyError', { msg: h.keyMessage }));
     } catch (e) {
       setConn(t('settings.token.bad', { msg: e instanceof Error ? e.message : String(e) }));
     }

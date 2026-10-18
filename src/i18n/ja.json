@@ -6,7 +6,6 @@
   "nav.review": "レビュー",
   "nav.progress": "進捗",
   "nav.settings": "設定",
-
   "home.today": "今日",
   "home.goal": "/ 目標 {min} 分",
   "home.streak": "日連続",
@@ -25,7 +24,6 @@
   "home.totals": "{sessions} セッション · {minutes} 分 · {words} 語",
   "home.pending": "{n} 件のセッションが同期待ち",
   "home.offline": "オフライン — 最後に取得したデータを表示中",
-
   "talk.title": "会話",
   "talk.pick": "モードを選ぶ",
   "talk.mode.daily": "日常",
@@ -55,7 +53,6 @@
   "talk.hint.stuck": "続けて — 簡単な言い方でいいよ。",
   "talk.elapsed": "経過",
   "talk.words": "語",
-
   "summary.title": "セッション完了",
   "summary.spoke": "話した時間",
   "summary.words": "語数",
@@ -68,7 +65,6 @@
   "summary.again": "もう一度話す",
   "summary.home": "ホームへ",
   "summary.review": "レビュー（Phase 2）",
-
   "progress.title": "進捗",
   "progress.minutes": "発話分数",
   "progress.range.week": "週",
@@ -77,13 +73,12 @@
   "progress.totalWords": "合計語数",
   "progress.sessions": "セッション数",
   "progress.best": "最高の日",
-
   "settings.title": "設定",
   "settings.connection": "接続",
   "settings.token": "アプリトークン",
   "settings.token.help": "Worker の APP_TOKEN と同じ値。このブラウザにだけ保存されます。",
   "settings.token.check": "接続を確認",
-  "settings.token.ok": "接続できました",
+  "settings.token.ok": "接続できました — Anthropic のキーも有効です",
   "settings.token.noKey": "接続できましたが Worker に ANTHROPIC_API_KEY がありません",
   "settings.token.bad": "接続できません: {msg}",
   "settings.language": "表示言語",
@@ -110,11 +105,12 @@
   "settings.wipe.confirm": "サーバー上のセッションと統計をすべて削除しますか？元に戻せません。",
   "settings.saved": "保存しました",
   "settings.save": "保存",
-
   "common.loading": "読み込み中…",
   "common.error": "問題が起きました",
   "common.retry": "再試行",
   "common.cancel": "キャンセル",
   "common.close": "閉じる",
-  "common.back": "戻る"
+  "common.back": "戻る",
+  "settings.token.keyInvalid": "接続できましたが Anthropic がキーを拒否しました（{hint}）。console.anthropic.com → API Keys で作り直し、.dev.vars に引用符や空白なしで貼って npm run dev を再起動してください。",
+  "settings.token.keyError": "接続できましたが Anthropic API がエラーを返しました: {msg}"
 }

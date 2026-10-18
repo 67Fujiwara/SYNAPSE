@@ -39,7 +39,24 @@ function localDate(c: { req: { header(name: string): string | undefined } }): st
   return h && /^\d{4}-\d{2}-\d{2}$/.test(h) ? h : new Date().toISOString().slice(0, 10);
 }
 
-app.get('/api/health', (c) => c.json({ ok: true, hasKey: Boolean(c.env.ANTHROPIC_API_KEY) }));
+// Health: also verifies the Anthropic key with a free call (models.list costs no tokens),
+// so "Test connection" in Settings tells the user exactly which half is broken.
+app.get('/api/health', async (c) => {
+  const key = c.env.ANTHROPIC_API_KEY ?? '';
+  const hasKey = Boolean(key);
+  let keyStatus: 'ok' | 'missing' | 'invalid' | 'error' = hasKey ? 'ok' : 'missing';
+  let keyMessage = '';
+  if (hasKey) {
+    try {
+      await anthropic(c.env).models.list({ limit: 1 });
+    } catch (err) {
+      keyStatus = err instanceof Anthropic.AuthenticationError ? 'invalid' : 'error';
+      keyMessage = describeError(err);
+    }
+  }
+  const hint = hasKey ? `${key.slice(0, 10)}…${key.slice(-4)} (${key.length} chars)` : '';
+  return c.json({ ok: true, hasKey, keyStatus, keyMessage, keyHint: hint });
+});
 
 // --- Chat: streams Claude's reply as SSE without buffering. -----------------
 app.post('/api/chat', async (c) => {

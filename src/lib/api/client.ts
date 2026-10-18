@@ -52,7 +52,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  health: () => request<{ ok: boolean; hasKey: boolean }>('/api/health'),
+  health: () =>
+    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'error'; keyMessage: string; keyHint: string }>(
+      '/api/health',
+    ),
   stats: (days = 7) => request<StatsResponse>(`/api/stats?days=${days}`),
   saveSession: (payload: SessionPayload) =>
     request<{ ok: boolean }>('/api/sessions', { method: 'POST', body: JSON.stringify(payload) }),

@@ -6,7 +6,6 @@
   "nav.review": "Review",
   "nav.progress": "Progress",
   "nav.settings": "Settings",
-
   "home.today": "Today",
   "home.goal": "of {min} min goal",
   "home.streak": "day streak",
@@ -25,7 +24,6 @@
   "home.totals": "{sessions} sessions · {minutes} min · {words} words",
   "home.pending": "{n} session(s) waiting to sync",
   "home.offline": "Offline — showing last known data",
-
   "talk.title": "Talk",
   "talk.pick": "Pick a mode",
   "talk.mode.daily": "Daily",
@@ -55,7 +53,6 @@
   "talk.hint.stuck": "Keep going — you can say it simply.",
   "talk.elapsed": "Elapsed",
   "talk.words": "words",
-
   "summary.title": "Session complete",
   "summary.spoke": "You spoke for",
   "summary.words": "Words",
@@ -68,7 +65,6 @@
   "summary.again": "Talk again",
   "summary.home": "Back home",
   "summary.review": "Review (Phase 2)",
-
   "progress.title": "Progress",
   "progress.minutes": "Speaking minutes",
   "progress.range.week": "Week",
@@ -77,13 +73,12 @@
   "progress.totalWords": "Total words",
   "progress.sessions": "Sessions",
   "progress.best": "Best day",
-
   "settings.title": "Settings",
   "settings.connection": "Connection",
   "settings.token": "App token",
   "settings.token.help": "Same value as APP_TOKEN on the Worker. Stored only in this browser.",
   "settings.token.check": "Test connection",
-  "settings.token.ok": "Connected",
+  "settings.token.ok": "Connected — Anthropic key is valid",
   "settings.token.noKey": "Connected, but ANTHROPIC_API_KEY is missing on the Worker",
   "settings.token.bad": "Could not connect: {msg}",
   "settings.language": "UI language",
@@ -110,11 +105,12 @@
   "settings.wipe.confirm": "Delete ALL sessions and stats from the server? This cannot be undone.",
   "settings.saved": "Saved",
   "settings.save": "Save",
-
   "common.loading": "Loading…",
   "common.error": "Something went wrong",
   "common.retry": "Retry",
   "common.cancel": "Cancel",
   "common.close": "Close",
-  "common.back": "Back"
+  "common.back": "Back",
+  "settings.token.keyInvalid": "Connected, but Anthropic rejected the API key ({hint}). Re-create it at console.anthropic.com → API Keys, paste it into .dev.vars with no quotes or spaces, then restart npm run dev.",
+  "settings.token.keyError": "Connected, but the Anthropic API returned an error: {msg}"
 }
