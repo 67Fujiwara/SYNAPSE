@@ -53,7 +53,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () =>
-    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'error'; keyMessage: string; keyHint: string; stt: boolean }>(
+    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'workspace' | 'error'; keyMessage: string; keyHint: string; hasWorkspace: boolean; stt: boolean }>(
       '/api/health',
     ),
   stats: (days = 7) => request<StatsResponse>(`/api/stats?days=${days}`),

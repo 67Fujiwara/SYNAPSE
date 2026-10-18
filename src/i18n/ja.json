@@ -127,5 +127,6 @@
   "settings.sttEngine.server": "サーバー（録音して API で文字起こし）",
   "settings.sttEngine.help": "サーバー方式は Worker に STT_API_KEY が必要。Safari の認識が不安定なときに使う",
   "settings.sttEngine.missing": "Worker にサーバー文字起こしが設定されていません（STT_API_KEY）。",
-  "settings.sttEngine.ok": "サーバー文字起こしは設定済みです。"
+  "settings.sttEngine.ok": "サーバー文字起こしは設定済みです。",
+  "settings.token.keyWorkspace": "接続できましたが、このキーはワークスペースに紐づいていません（sk-ant-usr-… 形式）。.dev.vars に ANTHROPIC_WORKSPACE_ID=<ワークスペース ID> を 1 行足して再起動する（Console → Settings → Workspaces で ID をコピー）か、ワークスペースの中で作ったキーに替えてください（Console → Workspaces → 自分のワークスペース → API Keys）。"
 }

@@ -30,7 +30,16 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 function anthropic(env: Env) {
-  return new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  // User-scoped keys (sk-ant-usr-…) must say which workspace to bill; the header does that.
+  const ws = env.ANTHROPIC_WORKSPACE_ID?.trim();
+  return new Anthropic({
+    apiKey: env.ANTHROPIC_API_KEY,
+    defaultHeaders: ws ? { 'anthropic-workspace-id': ws } : undefined,
+  });
+}
+
+function needsWorkspace(err: unknown): boolean {
+  return err instanceof Anthropic.BadRequestError && /workspace/i.test(err.message);
 }
 
 /** Local calendar date sent by the client (its time zone), else UTC today. */
@@ -44,18 +53,31 @@ function localDate(c: { req: { header(name: string): string | undefined } }): st
 app.get('/api/health', async (c) => {
   const key = c.env.ANTHROPIC_API_KEY ?? '';
   const hasKey = Boolean(key);
-  let keyStatus: 'ok' | 'missing' | 'invalid' | 'error' = hasKey ? 'ok' : 'missing';
+  let keyStatus: 'ok' | 'missing' | 'invalid' | 'workspace' | 'error' = hasKey ? 'ok' : 'missing';
   let keyMessage = '';
   if (hasKey) {
     try {
-      await anthropic(c.env).models.list({ limit: 1 });
+      // count_tokens is free and goes through the same checks a real message does
+      // (auth, workspace scoping), unlike models.list which passes for any key.
+      await anthropic(c.env).messages.countTokens({
+        model: c.env.DEFAULT_CHAT_MODEL || 'claude-sonnet-5-5',
+        messages: [{ role: 'user', content: 'hi' }],
+      });
     } catch (err) {
-      keyStatus = err instanceof Anthropic.AuthenticationError ? 'invalid' : 'error';
+      keyStatus = err instanceof Anthropic.AuthenticationError ? 'invalid' : needsWorkspace(err) ? 'workspace' : 'error';
       keyMessage = describeError(err);
     }
   }
   const hint = hasKey ? `${key.slice(0, 10)}…${key.slice(-4)} (${key.length} chars)` : '';
-  return c.json({ ok: true, hasKey, keyStatus, keyMessage, keyHint: hint, stt: Boolean(c.env.STT_API_KEY) });
+  return c.json({
+    ok: true,
+    hasKey,
+    keyStatus,
+    keyMessage,
+    keyHint: hint,
+    hasWorkspace: Boolean(c.env.ANTHROPIC_WORKSPACE_ID),
+    stt: Boolean(c.env.STT_API_KEY),
+  });
 });
 
 // --- Chat: streams Claude's reply as SSE without buffering. -----------------
@@ -115,6 +137,8 @@ app.post('/api/chat', async (c) => {
 
 function describeError(err: unknown): string {
   if (err instanceof Anthropic.AuthenticationError) return 'Anthropic API key is invalid (check ANTHROPIC_API_KEY).';
+  if (needsWorkspace(err))
+    return 'This API key needs a workspace: set ANTHROPIC_WORKSPACE_ID on the Worker (Console → Settings → Workspaces), or create a workspace-scoped key.';
   if (err instanceof Anthropic.RateLimitError) return 'Rate limited by the Anthropic API. Try again in a moment.';
   if (err instanceof Anthropic.APIConnectionError) return 'Could not reach the Anthropic API.';
   if (err instanceof Anthropic.APIError) return `Anthropic API error ${err.status ?? ''}: ${err.message}`;

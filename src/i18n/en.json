@@ -127,5 +127,6 @@
   "settings.sttEngine.server": "Server (records and transcribes via API)",
   "settings.sttEngine.help": "Server mode needs STT_API_KEY on the Worker. Use it if Safari's recognition is unreliable.",
   "settings.sttEngine.missing": "Server speech-to-text is not configured on the Worker (STT_API_KEY).",
-  "settings.sttEngine.ok": "Server speech-to-text is configured."
+  "settings.sttEngine.ok": "Server speech-to-text is configured.",
+  "settings.token.keyWorkspace": "Connected, but this API key is not tied to a workspace (sk-ant-usr-… keys). Either add ANTHROPIC_WORKSPACE_ID=<workspace id> to .dev.vars (Console → Settings → Workspaces) and restart, or create a key inside a workspace (Console → Workspaces → your workspace → API Keys)."
 }

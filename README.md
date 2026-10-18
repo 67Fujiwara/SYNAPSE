@@ -37,6 +37,7 @@ npm install
 # 1) Worker の秘密情報（git 管理外）
 cp .dev.vars.example .dev.vars
 #    ANTHROPIC_API_KEY=sk-ant-...       ← Anthropic Console で発行
+#    ANTHROPIC_WORKSPACE_ID=wrkspc_...  ← キーが sk-ant-usr- 形式のときだけ（Console → Settings → Workspaces の ID）
 #    APP_TOKEN=<長いランダム文字列>       ← アプリ側から Bearer で送る合言葉
 
 # 2) D1 のスキーマをローカルに適用
@@ -78,6 +79,7 @@ npx wrangler r2 bucket create synapse-storage
 # 秘密情報
 npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put APP_TOKEN
+# キーが sk-ant-usr- 形式なら: npx wrangler secret put ANTHROPIC_WORKSPACE_ID
 
 # ビルドしてデプロイ → https://synapse-api.<account>.workers.dev
 npm run deploy

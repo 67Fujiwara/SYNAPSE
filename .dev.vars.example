@@ -1,5 +1,8 @@
 # Copy to .dev.vars for `wrangler dev` (git-ignored).
 ANTHROPIC_API_KEY=sk-ant-...
+# Only if your key is user-scoped (starts with sk-ant-usr-): the workspace to use.
+# Console → Settings → Workspaces → copy the workspace ID. Not needed for keys created inside a workspace.
+# ANTHROPIC_WORKSPACE_ID=wrkspc_...
 # Any long random string. The web app sends it as `Authorization: Bearer <APP_TOKEN>`.
 APP_TOKEN=change-me-to-a-long-random-string
 
