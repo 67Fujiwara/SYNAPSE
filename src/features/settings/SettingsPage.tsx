@@ -6,7 +6,7 @@ import { useT } from '@/i18n';
 import { useSettings } from './SettingsProvider';
 import { api, getToken, setToken } from '@/lib/api/client';
 import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
-import type { Immersion, UiLang } from '@shared/types';
+import type { Immersion, MicMode, SttEngine, UiLang } from '@shared/types';
 
 const CHAT_MODELS = ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'];
 const REVIEW_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
@@ -29,6 +29,18 @@ export function SettingsPage() {
   const [token, setTok] = useState(getToken());
   const [conn, setConn] = useState<string | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [sttNote, setSttNote] = useState<string | null>(null);
+
+  const checkStt = async (engine: SttEngine) => {
+    update({ sttEngine: engine });
+    if (engine !== 'server') return setSttNote(null);
+    try {
+      const h = await api.health();
+      setSttNote(h.stt ? t('settings.sttEngine.ok') : t('settings.sttEngine.missing'));
+    } catch {
+      setSttNote(null);
+    }
+  };
 
   useEffect(() => {
     const synth = new WebSpeechSynthesizer();
@@ -46,6 +58,7 @@ export function SettingsPage() {
     try {
       const h = await api.health();
       if (h.keyStatus === 'ok') setConn(t('settings.token.ok'));
+      if (settings.sttEngine === 'server') setSttNote(h.stt ? t('settings.sttEngine.ok') : t('settings.sttEngine.missing'));
       else if (h.keyStatus === 'missing') setConn(t('settings.token.noKey'));
       else if (h.keyStatus === 'invalid') setConn(t('settings.token.keyInvalid', { hint: h.keyHint }));
       else setConn(t('settings.token.keyError', { msg: h.keyMessage }));
@@ -145,6 +158,24 @@ export function SettingsPage() {
         <Row label={t('settings.manual')}>
           <Switch checked={settings.manualSend} onChange={(v) => update({ manualSend: v })} label={t('settings.manual')} />
         </Row>
+      </Card>
+
+      <Card className="divide-y divide-line/70">
+        <h2 className="pb-1 font-display text-base font-semibold">{t('settings.speech')}</h2>
+        <Row label={t('settings.micMode')}>
+          <select value={settings.micMode} onChange={(e) => update({ micMode: e.target.value as MicMode })} className="max-w-[320px]">
+            <option value="auto">{t('settings.micMode.auto')}</option>
+            <option value="continuous">{t('settings.micMode.continuous')}</option>
+            <option value="push">{t('settings.micMode.push')}</option>
+          </select>
+        </Row>
+        <Row label={t('settings.sttEngine')} help={t('settings.sttEngine.help')}>
+          <select value={settings.sttEngine} onChange={(e) => void checkStt(e.target.value as SttEngine)} className="max-w-[320px]">
+            <option value="browser">{t('settings.sttEngine.browser')}</option>
+            <option value="server">{t('settings.sttEngine.server')}</option>
+          </select>
+        </Row>
+        {sttNote && <div className="pt-2 text-xs text-ink-2">{sttNote}</div>}
       </Card>
 
       <Card className="divide-y divide-line/70">

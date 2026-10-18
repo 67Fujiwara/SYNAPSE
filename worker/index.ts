@@ -55,7 +55,7 @@ app.get('/api/health', async (c) => {
     }
   }
   const hint = hasKey ? `${key.slice(0, 10)}…${key.slice(-4)} (${key.length} chars)` : '';
-  return c.json({ ok: true, hasKey, keyStatus, keyMessage, keyHint: hint });
+  return c.json({ ok: true, hasKey, keyStatus, keyMessage, keyHint: hint, stt: Boolean(c.env.STT_API_KEY) });
 });
 
 // --- Chat: streams Claude's reply as SSE without buffering. -----------------
@@ -140,6 +140,39 @@ app.post('/api/scenario', async (c) => {
     .join('')
     .trim();
   return c.json({ scenario: text });
+});
+
+// --- Server-side speech-to-text (optional) -------------------------------------
+// Fallback for browsers whose SpeechRecognition is unreliable (iOS Safari).
+// The client records a short clip (MediaRecorder) and posts it here; we forward
+// it to an OpenAI-compatible /audio/transcriptions endpoint and return the text.
+app.post('/api/transcribe', async (c) => {
+  if (!c.env.STT_API_KEY) return c.json({ error: 'Server speech-to-text is not configured (STT_API_KEY).' }, 501);
+  const form = await c.req.formData();
+  const audio = form.get('audio');
+  if (!(audio instanceof File) || audio.size === 0) return c.json({ error: 'audio file required' }, 400);
+  if (audio.size > 20 * 1024 * 1024) return c.json({ error: 'audio too large (max 20MB)' }, 413);
+
+  const upstream = new FormData();
+  // Give the blob a filename with a sensible extension; some providers key the decoder on it.
+  const ext = audio.type.includes('mp4') ? 'mp4' : audio.type.includes('ogg') ? 'ogg' : audio.type.includes('wav') ? 'wav' : 'webm';
+  upstream.append('file', audio, `speech.${ext}`);
+  upstream.append('model', c.env.STT_MODEL || 'whisper-1');
+  upstream.append('language', 'en');
+  upstream.append('response_format', 'json');
+
+  const base = (c.env.STT_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
+  const res = await fetch(`${base}/audio/transcriptions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${c.env.STT_API_KEY}` },
+    body: upstream,
+  });
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 300);
+    return c.json({ error: `Speech-to-text failed (${res.status}): ${detail}` }, 502);
+  }
+  const data = (await res.json()) as { text?: string };
+  return c.json({ text: (data.text ?? '').trim() });
 });
 
 // --- Sessions ----------------------------------------------------------------

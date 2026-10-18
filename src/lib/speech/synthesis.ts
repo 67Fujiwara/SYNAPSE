@@ -9,6 +9,7 @@ export class WebSpeechSynthesizer implements Synthesizer {
   readonly supported: boolean;
   private active = 0;
   private cancelled = new Set<SpeechSynthesisUtterance>();
+  private unlocked = false;
 
   constructor() {
     this.supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -21,6 +22,23 @@ export class WebSpeechSynthesizer implements Synthesizer {
 
   get speaking() {
     return this.active > 0;
+  }
+
+  /**
+   * Call from a click/tap handler once per page. iOS Safari only lets speech
+   * start inside a user gesture; a silent utterance here "unlocks" later calls
+   * that happen after network round-trips.
+   */
+  unlock() {
+    if (!this.supported || this.unlocked) return;
+    this.unlocked = true;
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch {
+      /* ignore */
+    }
   }
 
   voices(): SpeechSynthesisVoice[] {

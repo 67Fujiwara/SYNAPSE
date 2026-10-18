@@ -10,6 +10,7 @@ export class MicAnalyser {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.ctx = new AudioContext();
+      if (this.ctx.state === 'suspended') void this.ctx.resume();
       const src = this.ctx.createMediaStreamSource(this.stream);
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 256;

@@ -2,3 +2,8 @@
 ANTHROPIC_API_KEY=sk-ant-...
 # Any long random string. The web app sends it as `Authorization: Bearer <APP_TOKEN>`.
 APP_TOKEN=change-me-to-a-long-random-string
+
+# Optional: server-side speech-to-text (fallback for iPhone). Leave unset to use the browser's recognition only.
+# STT_API_KEY=sk-...
+# STT_BASE_URL=https://api.openai.com/v1
+# STT_MODEL=whisper-1

@@ -112,5 +112,20 @@
   "common.close": "閉じる",
   "common.back": "戻る",
   "settings.token.keyInvalid": "接続できましたが Anthropic がキーを拒否しました（{hint}）。console.anthropic.com → API Keys で作り直し、.dev.vars に引用符や空白なしで貼って npm run dev を再起動してください。",
-  "settings.token.keyError": "接続できましたが Anthropic API がエラーを返しました: {msg}"
+  "settings.token.keyError": "接続できましたが Anthropic API がエラーを返しました: {msg}",
+  "talk.ready": "マイクをタップして話す",
+  "talk.tapToSend": "タップで送信",
+  "talk.transcribing": "文字起こし中…",
+  "talk.pushHint": "タップ → 話す → もう一度タップ",
+  "settings.speech": "音声入力",
+  "settings.micMode": "マイクの動かし方",
+  "settings.micMode.auto": "自動（PC は常時オン、iPhone はタップして話す）",
+  "settings.micMode.continuous": "常に聞く",
+  "settings.micMode.push": "タップして話す",
+  "settings.sttEngine": "認識エンジン",
+  "settings.sttEngine.browser": "ブラウザ（無料。Chrome / Safari）",
+  "settings.sttEngine.server": "サーバー（録音して API で文字起こし）",
+  "settings.sttEngine.help": "サーバー方式は Worker に STT_API_KEY が必要。Safari の認識が不安定なときに使う",
+  "settings.sttEngine.missing": "Worker にサーバー文字起こしが設定されていません（STT_API_KEY）。",
+  "settings.sttEngine.ok": "サーバー文字起こしは設定済みです。"
 }

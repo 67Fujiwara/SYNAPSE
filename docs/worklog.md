@@ -31,3 +31,17 @@
 2. シャドーイング（素材化・`boundary` イベントのカラオケ・§4.2 のアライメント採点・間隔反復）→ `shadow_items` / `shadow_attempts` 作成済み
 3. 単語タップのポップアップ（IPA / 定義 / 例文）
 4. My Work はシナリオ生成まで実装済み。会話中の「Say it differently」ヒントパネルは未実装
+
+## 2026-10-18 — Phase 1.5: iPhone 対応の土台
+
+- ユーザーの要望「iPhone でも使いたい。Phase 3 までに課題を解決しておく」→ iPhone 無しでできる準備を先に全部やった。詳細は `docs/iphone.md`
+- **1 URL 化**: `wrangler.toml` `[assets]`（`directory=./dist`, `not_found_handling=single-page-application`, `run_worker_first=["/api/*"]`）。
+  `npm run deploy` = build + `wrangler deploy`。Pages は使わない（CORS も `_redirects` も不要になる）。ローカルは `npm run preview:worker` で同じ形を確認（/ と /settings が 200 text/html、manifest・icon が 200、/api/* は Worker）
+- **PWA**: manifest + icons（Chromium のキャンバスで SVG → PNG。`tools/` には入れていない。再生成は scratchpad の icons.mjs 相当）+ iOS メタ
+- **push-to-talk**: `Phase` に `ready` を追加。`micMode: 'auto' | 'continuous' | 'push'`（auto は `isIOS()` で push）。`tapMic()` が ready→listening、listening→送信。
+  `resumeListening()` が push では `ready` にして止まる（iOS Safari は gesture 無しで `recognition.start()` できない前提）
+- **サーバー認識**: `ServerRecognizer`（MediaRecorder、タップで開始・タップで停止 → `/api/transcribe`）。Worker は OpenAI 互換 `/audio/transcriptions` に転送、`STT_API_KEY` が無ければ 501。
+  `Recognizer` インターフェースはそのまま（仕様の「差し替え可能」を実際に 2 実装にした）。サーバー方式は結果が 1 クリップ 1 回なので `onResult` で即 `send()`
+- **iOS 音声解錠**: `WebSpeechSynthesizer.unlock()` を Start talking のクリック内で呼ぶ。`MicAnalyser` は `AudioContext.resume()`
+- 検証: tsc / vitest 14 / build 通過。iPhone UA のヘッドレス Chromium で 開始→ready→タップ→聞く→タップ→送信→（API エラー表示）→ready を確認、コンソールエラー 0。**実機 Safari は未確認**（チェックリストは docs/iphone.md）
+- 今日のサポートで分かったこと: `.dev.vars` に curl コマンドをそのまま貼ってしまうケースがあった。Test connection がキーの先頭・末尾・文字数を出すようにしたので、次からはそこで気づける

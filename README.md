@@ -21,6 +21,7 @@ AI       : Anthropic Messages API (SSE ストリーミング)
 | 3 | セッションを D1 に保存、基本メトリクス（分数・語数・WPM・フィラー率・異なり語数・応答レイテンシ） | ✅ |
 | 4 | ダッシュボードの目標リング・ストリーク・7 日折れ線、進捗ページ（週/月） | ✅ |
 | — | オフライン時は IndexedDB に退避し、復帰後に D1 へ同期（冪等） | ✅ |
+| 1.5 | iPhone 準備: 1 URL 配信・PWA・iOS 音声解錠・タップして話すモード・サーバー認識の差し替え口（[docs/iphone.md](docs/iphone.md)） | ✅ コード / ⬜ 実機 |
 
 Phase 2（レビュー / シャドーイング / 単語ポップアップ）は未着手。ナビには枠だけある。
 
@@ -60,7 +61,9 @@ npm run build       # dist/ を生成
 
 ---
 
-## デプロイ（Cloudflare）
+## デプロイ（Cloudflare）— iPhone から使うにはこれが必要
+
+画面（`dist/`）と API は **同じ Worker** から配信する（`wrangler.toml` の `[assets]`）。デプロイは 1 コマンド、URL も 1 つ。
 
 ```bash
 npx wrangler login
@@ -69,23 +72,20 @@ npx wrangler login
 npx wrangler d1 create synapse-db
 npm run db:migrate:remote
 
-# R2 バケット（Phase 3 の録音保存用。今は空でよい）
+# R2 バケット（Phase 3 の録音保存用。今は空でよい。カード登録を避けたければ wrangler.toml の [[r2_buckets]] をコメントアウト）
 npx wrangler r2 bucket create synapse-storage
 
 # 秘密情報
 npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put APP_TOKEN
 
-# API
-npm run deploy:api            # → https://synapse-api.<account>.workers.dev
-
-# フロント（Pages）。/api を Worker に向けるため、Pages 側で Service binding か
-# `_redirects` のプロキシを設定する（例: /api/* → Worker の URL）
-npm run deploy:web
+# ビルドしてデプロイ → https://synapse-api.<account>.workers.dev
+npm run deploy
 ```
 
-フロントと API を別ホストに置く場合は、`src/lib/api/client.ts` の相対パス `/api` を Worker の URL に変えるか、
-Pages の `_redirects` で `/api/* https://synapse-api.<account>.workers.dev/api/:splat 200` を書く。
+iPhone では Safari でその URL を開き、「共有 → ホーム画面に追加」。詳細と実機チェックリストは [`docs/iphone.md`](docs/iphone.md)。
+
+デプロイ前にローカルで本番と同じ形を試す: `npm run preview:worker`（ビルドして Worker 1 本で :8787 に配信）。
 
 ---
 
@@ -125,7 +125,7 @@ Pages の `_redirects` で `/api/* https://synapse-api.<account>.workers.dev/api
 
 ```
 worker/
-  index.ts          Hono: /api/chat (SSE) /api/scenario /api/sessions /api/stats /api/settings /api/data
+  index.ts          Hono: /api/chat (SSE) /api/scenario /api/transcribe /api/sessions /api/stats /api/settings /api/data
   db/               D1 クエリ層（sessions / stats / settings）
   prompts/*.md      システムプロンプト（共通 / 没入度 3 段 / モード 4 種 / シナリオ生成）— コードから分離。編集してよい
 migrations/         D1 マイグレーション
@@ -135,7 +135,7 @@ src/
   features/conversation/  会話（useConversation = 半二重の中核、Transcript、Waveform、SummaryCard、TalkPage）
   features/progress/      ダッシュボード・進捗（GoalRing、MinutesChart）
   features/settings/      設定（SettingsProvider = localStorage 即時 + D1 へ遅延保存）
-  lib/speech/       Recognizer / Synthesizer の抽象化、Web Speech 実装、文分割、マイク波形
+  lib/speech/       Recognizer / Synthesizer の抽象化、Web Speech 実装、サーバー認識 (MediaRecorder → /api/transcribe)、文分割、マイク波形、iOS 判定
   lib/metrics/      語数 / WPM / フィラー / 異なり語数
   lib/api/          Worker クライアント（SSE リーダー含む）
   lib/db/           IndexedDB（オフラインの一時キャッシュ・送信待ちキュー）

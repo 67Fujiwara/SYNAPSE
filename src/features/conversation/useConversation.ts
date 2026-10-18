@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage, Immersion, Mode, Session, SessionPayload, Turn } from '@shared/types';
+import type { ChatMessage, Immersion, Mode, Session, SessionPayload, SttEngine, Turn } from '@shared/types';
 import { streamChat } from '@/lib/api/client';
+import type { Recognizer } from '@/lib/speech/types';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
+import { ServerRecognizer } from '@/lib/speech/server-recognizer';
 import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
 import { SentenceChunker } from '@/lib/speech/sentences';
 import { computeMetrics, computeXp } from '@/lib/metrics';
 import { uuid } from '@/lib/util';
 
-export type Phase = 'idle' | 'listening' | 'thinking' | 'speaking' | 'ended';
+/**
+ * idle      session not started
+ * ready     session live, mic off, waiting for a tap (push-to-talk only)
+ * listening mic on
+ * thinking  waiting for the first token
+ * speaking  TTS playing
+ * ended     session finished
+ */
+export type Phase = 'idle' | 'ready' | 'listening' | 'thinking' | 'speaking' | 'ended';
 
 export interface DisplayTurn {
   id: string;
@@ -27,6 +37,9 @@ export interface ConversationConfig {
   rate: number;
   silenceSec: number;
   manualSend: boolean;
+  /** Resolved mic mode ('auto' already turned into one of these by the caller). */
+  micMode: 'continuous' | 'push';
+  engine: SttEngine;
 }
 
 export interface ConversationState {
@@ -37,6 +50,8 @@ export interface ConversationState {
   draft: string;
   error: string | null;
   listening: boolean;
+  /** Server engine: clip uploaded, waiting for the transcript. */
+  transcribing: boolean;
   startedAt: string | null;
   speakingSec: number;
   words: number;
@@ -44,28 +59,34 @@ export interface ConversationState {
 
 const STUCK_RE = /^(\s*(um+|uh+|er+|hmm+|ah+|eh+|えーと|あの|その)[,.\s]*)+$/i;
 
+const INITIAL: ConversationState = {
+  phase: 'idle',
+  turns: [],
+  interim: '',
+  draft: '',
+  error: null,
+  listening: false,
+  transcribing: false,
+  startedAt: null,
+  speakingSec: 0,
+  words: 0,
+};
+
 /**
  * Half-duplex voice conversation:
- *  user speaks -> (silence) -> send -> AI streams -> TTS per sentence (mic off)
- *  -> last sentence done -> mic on again. Tap during TTS interrupts.
+ *  user speaks -> (silence or tap) -> send -> AI streams -> TTS per sentence (mic off)
+ *  -> last sentence done -> mic on again (continuous) or wait for a tap (push).
  */
 export function useConversation(cfg: ConversationConfig) {
-  const [state, setState] = useState<ConversationState>({
-    phase: 'idle',
-    turns: [],
-    interim: '',
-    draft: '',
-    error: null,
-    listening: false,
-    startedAt: null,
-    speakingSec: 0,
-    words: 0,
-  });
+  const [state, setState] = useState<ConversationState>(INITIAL);
 
   const cfgRef = useRef(cfg);
   cfgRef.current = cfg;
 
-  const recognizer = useMemo(() => new WebSpeechRecognizer('en-US'), []);
+  const recognizer: Recognizer = useMemo(
+    () => (cfg.engine === 'server' ? new ServerRecognizer() : new WebSpeechRecognizer('en-US')),
+    [cfg.engine],
+  );
   const synth = useMemo(() => new WebSpeechSynthesizer(), []);
 
   const history = useRef<ChatMessage[]>([]);
@@ -87,7 +108,7 @@ export function useConversation(cfg: ConversationConfig) {
     phaseRef.current = p;
     setState((s) => ({ ...s, phase: p }));
   };
-
+  const phase = () => phaseRef.current as Phase;
   const pushTurns = () => setState((s) => ({ ...s, turns: [...turnsRef.current] }));
 
   const clearSilence = () => {
@@ -97,16 +118,34 @@ export function useConversation(cfg: ConversationConfig) {
     }
   };
 
+  /** Mic back on (continuous) or wait for a tap (push). */
+  const resumeListening = () => {
+    if (cfgRef.current.micMode === 'push') {
+      recognizer.stop();
+      setPhase('ready');
+      return;
+    }
+    setPhase('listening');
+    recognizer.setKeepAlive(true);
+    recognizer.start();
+  };
+
+  const armSilence = () => {
+    clearSilence();
+    if (cfgRef.current.manualSend) return;
+    silenceTimer.current = window.setTimeout(() => void send(), cfgRef.current.silenceSec * 1000);
+  };
+
   // ---- send the user's draft to the AI -------------------------------------
   const send = useCallback(async () => {
     clearSilence();
     const text = draftRef.current.trim();
-    if (!text || phaseRef.current !== 'listening') return;
+    if (!text || phase() !== 'listening') return;
     draftRef.current = '';
     const startedAt = draftStart.current ?? new Date().toISOString();
     draftStart.current = null;
     const endedAt = new Date().toISOString();
-    setState((s) => ({ ...s, draft: '', interim: '' }));
+    setState((s) => ({ ...s, draft: '', interim: '', transcribing: false }));
 
     turnsRef.current.push({ id: uuid(), role: 'user', text, startedAt, endedAt });
     history.current.push({ role: 'user', content: text });
@@ -131,7 +170,7 @@ export function useConversation(cfg: ConversationConfig) {
     const c = cfgRef.current;
     const speakSentence = (s: string) => {
       if (gen !== ttsGeneration.current) return;
-      if (phaseRef.current === 'thinking') setPhase('speaking');
+      if (phase() === 'thinking') setPhase('speaking');
       ttsQueue.push(synth.speak(s, { rate: c.rate, voice: c.voice }));
     };
 
@@ -166,14 +205,14 @@ export function useConversation(cfg: ConversationConfig) {
 
     if (gen === ttsGeneration.current) {
       await Promise.all(ttsQueue);
-      const now = phaseRef.current as Phase;
+      const now = phase();
       if (gen === ttsGeneration.current && now !== 'ended' && now !== 'idle') {
         lastAiEnd.current = Date.now();
         resumeListening();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recognizer]);
 
   const speakAi = async (text: string) => {
     recognizer.stop();
@@ -183,28 +222,16 @@ export function useConversation(cfg: ConversationConfig) {
     history.current.push({ role: 'assistant', content: text });
     pushTurns();
     await synth.speak(text, { rate: cfgRef.current.rate, voice: cfgRef.current.voice });
-    if (gen === ttsGeneration.current && phaseRef.current === 'speaking') {
+    if (gen === ttsGeneration.current && phase() === 'speaking') {
       lastAiEnd.current = Date.now();
       resumeListening();
     }
   };
 
-  const resumeListening = () => {
-    setPhase('listening');
-    recognizer.setKeepAlive(true);
-    recognizer.start();
-  };
-
-  const armSilence = () => {
-    clearSilence();
-    if (cfgRef.current.manualSend) return;
-    silenceTimer.current = window.setTimeout(() => void send(), cfgRef.current.silenceSec * 1000);
-  };
-
   // ---- recognizer wiring ----------------------------------------------------
   useEffect(() => {
     recognizer.onResult(({ final, interim }) => {
-      if (phaseRef.current !== 'listening') return; // ignore echoes of our own TTS
+      if (phase() !== 'listening') return; // ignore echoes of our own TTS
       if (final) {
         if (!draftRef.current) {
           draftStart.current = new Date().toISOString();
@@ -215,7 +242,9 @@ export function useConversation(cfg: ConversationConfig) {
         }
         draftRef.current = (draftRef.current + ' ' + final).trim();
         setState((s) => ({ ...s, draft: draftRef.current, interim: '' }));
-        armSilence();
+        // Server engine delivers one transcript per clip: send it right away.
+        if (cfgRef.current.engine === 'server') void send();
+        else armSilence();
       } else {
         setState((s) => ({ ...s, interim }));
         if (interim) clearSilence(); // still talking
@@ -234,11 +263,16 @@ export function useConversation(cfg: ConversationConfig) {
         speechStartAt.current = null;
         setState((s) => ({ ...s, speakingSec: speakingMs.current / 1000 }));
       }
-      if (draftRef.current) armSilence();
+      if (draftRef.current && cfgRef.current.engine !== 'server') armSilence();
     });
     recognizer.onError((code) => {
       const msg = code === 'not-allowed' || code === 'service-not-allowed' ? 'mic-denied' : code === 'network' ? 'Speech recognition network error' : code;
-      setState((s) => ({ ...s, error: msg }));
+      setState((s) => ({ ...s, error: msg, transcribing: false }));
+      // A failed clip in push mode: go back to waiting for a tap.
+      if (cfgRef.current.micMode === 'push' && phase() === 'listening') {
+        recognizer.stop();
+        setPhase('ready');
+      }
     });
     recognizer.onStateChange((listening) => setState((s) => ({ ...s, listening })));
     return () => {
@@ -246,9 +280,13 @@ export function useConversation(cfg: ConversationConfig) {
       synth.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recognizer]);
 
   // ---- public actions -------------------------------------------------------
+
+  /** Must be called from the click/tap that starts the session (iOS audio unlock). */
+  const unlockAudio = useCallback(() => synth.unlock(), [synth]);
+
   const start = useCallback(
     async (opening?: string) => {
       sessionId.current = uuid();
@@ -257,38 +295,57 @@ export function useConversation(cfg: ConversationConfig) {
       turnsRef.current = [];
       speakingMs.current = 0;
       latencies.current = [];
-      setState({
-        phase: 'listening',
-        turns: [],
-        interim: '',
-        draft: '',
-        error: null,
-        listening: false,
-        startedAt: sessionStart.current,
-        speakingSec: 0,
-        words: 0,
-      });
+      setState({ ...INITIAL, phase: 'listening', startedAt: sessionStart.current });
       phaseRef.current = 'listening';
       if (opening) await speakAi(opening);
       else resumeListening();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [recognizer],
   );
+
+  /**
+   * Push-to-talk button. ready -> start the mic; listening -> send what we have
+   * (browser engine) or stop recording and transcribe (server engine).
+   */
+  const tapMic = useCallback(() => {
+    const p = phase();
+    if (p === 'ready') {
+      setState((s) => ({ ...s, error: null }));
+      setPhase('listening');
+      recognizer.setKeepAlive(false);
+      recognizer.start();
+      return;
+    }
+    if (p !== 'listening') return;
+    if (cfgRef.current.engine === 'server') {
+      setState((s) => ({ ...s, transcribing: true }));
+      recognizer.stop(); // -> onResult -> send()
+      return;
+    }
+    if (draftRef.current.trim()) void send();
+    else {
+      recognizer.stop();
+      setPhase('ready');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recognizer]);
 
   /** Tap during AI speech: stop TTS, drop the queue, listen again. */
   const interrupt = useCallback(() => {
-    if (phaseRef.current !== 'speaking' && phaseRef.current !== 'thinking') return;
+    const p = phase();
+    if (p !== 'speaking' && p !== 'thinking') return;
     ttsGeneration.current += 1;
     synth.cancel();
     abort.current?.abort();
     lastAiEnd.current = Date.now();
     resumeListening();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recognizer]);
 
   const end = useCallback((): SessionPayload | null => {
-    if (phaseRef.current === 'idle' || phaseRef.current === 'ended') return null;
+    const p = phase();
+    if (p === 'idle' || p === 'ended') return null;
     clearSilence();
     ttsGeneration.current += 1;
     synth.cancel();
@@ -321,13 +378,15 @@ export function useConversation(cfg: ConversationConfig) {
     };
     return { session, turns };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recognizer]);
 
   return {
     state,
     supported: recognizer.supported,
+    unlockAudio,
     start,
     send: () => void send(),
+    tapMic,
     interrupt,
     end,
   };

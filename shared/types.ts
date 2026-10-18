@@ -4,6 +4,10 @@
 export type Mode = 'daily' | 'business' | 'mywork' | 'free';
 export type Immersion = 'high' | 'medium' | 'low';
 export type UiLang = 'en' | 'ja';
+/** How the mic is driven. 'auto' = continuous on desktop, push-to-talk on iOS. */
+export type MicMode = 'auto' | 'continuous' | 'push';
+/** Where speech is recognized. 'server' records audio and sends it to /api/transcribe. */
+export type SttEngine = 'browser' | 'server';
 
 export interface Turn {
   id: string;
@@ -67,6 +71,8 @@ export interface Settings {
   chatModel: string;
   reviewModel: string;
   saveRecordings: boolean;
+  micMode: MicMode;
+  sttEngine: SttEngine;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -80,6 +86,8 @@ export const DEFAULT_SETTINGS: Settings = {
   chatModel: 'claude-sonnet-5-5',
   reviewModel: 'claude-opus-5-5',
   saveRecordings: false,
+  micMode: 'auto',
+  sttEngine: 'browser',
 };
 
 // ---- /api/chat --------------------------------------------------------------

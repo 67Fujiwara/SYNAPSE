@@ -13,6 +13,7 @@ import { Transcript } from './Transcript';
 import { Waveform } from './Waveform';
 import { SummaryCard } from './SummaryCard';
 import { cx, fmtMinutes } from '@/lib/util';
+import { isIOS } from '@/lib/speech/platform';
 
 const MODES: { id: Mode; Icon: typeof Coffee }[] = [
   { id: 'daily', Icon: Coffee },
@@ -46,8 +47,15 @@ export function TalkPage() {
   const [saved, setSaved] = useState<'synced' | 'queued' | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
+  // 'auto' = always-on mic on desktop, push-to-talk on iOS (Safari can't restart
+  // recognition without a gesture). The server engine is push-to-talk by nature.
+  const micMode: 'continuous' | 'push' =
+    settings.sttEngine === 'server' ? 'push' : settings.micMode === 'auto' ? (isIOS() ? 'push' : 'continuous') : settings.micMode;
+
   const conv = useConversation({
     mode,
+    micMode,
+    engine: settings.sttEngine,
     immersion: settings.immersion,
     scenario: mode === 'mywork' ? scenario : undefined,
     model: settings.chatModel,
@@ -85,6 +93,7 @@ export function TalkPage() {
     setResult(null);
     setSaved(null);
     const opening = mode === 'mywork' ? openingFromScenario(scenario) : OPENERS[mode];
+    conv.unlockAudio(); // inside the tap: required on iOS before any later speech
     void conv.start(opening);
   };
 
@@ -171,7 +180,18 @@ export function TalkPage() {
 
   // ---- Live conversation (immersive) -------------------------------------------
   const phaseLabel =
-    state.phase === 'listening' ? t('talk.listening') : state.phase === 'thinking' ? t('talk.thinking') : state.phase === 'speaking' ? t('talk.speaking') : t('talk.paused');
+    state.phase === 'ready'
+      ? t('talk.ready')
+      : state.phase === 'listening'
+        ? state.transcribing
+          ? t('talk.transcribing')
+          : t('talk.listening')
+        : state.phase === 'thinking'
+          ? t('talk.thinking')
+          : state.phase === 'speaking'
+            ? t('talk.speaking')
+            : t('talk.paused');
+  const push = micMode === 'push';
   const errorText = state.error === 'mic-denied' ? t('talk.mic.denied') : state.error;
   const canInterrupt = state.phase === 'speaking' || state.phase === 'thinking';
 
@@ -198,6 +218,28 @@ export function TalkPage() {
       {errorText && <div className="mx-auto mb-2 max-w-3xl px-5 text-center text-sm text-danger">{errorText}</div>}
 
       <div className="mx-auto w-full max-w-3xl px-5 pb-6" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+        {push && (
+          <div className="mb-4 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              aria-label={state.phase === 'listening' ? t('talk.tapToSend') : t('talk.ready')}
+              disabled={state.phase !== 'ready' && state.phase !== 'listening'}
+              onClick={(e) => {
+                e.stopPropagation();
+                conv.tapMic();
+              }}
+              className={cx(
+                'relative grid h-20 w-20 place-items-center rounded-full border-2 transition disabled:opacity-40',
+                state.phase === 'listening'
+                  ? 'border-accent bg-accent/20 text-accent shadow-glow pulse-ring'
+                  : 'border-line bg-surface-2 text-ink hover:border-accent/60',
+              )}
+            >
+              <Mic size={30} />
+            </button>
+            <span className="text-xs text-ink-3">{state.phase === 'listening' ? t('talk.tapToSend') : t('talk.pushHint')}</span>
+          </div>
+        )}
         <Waveform active={state.phase === 'listening' && state.listening} />
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-ink-2">

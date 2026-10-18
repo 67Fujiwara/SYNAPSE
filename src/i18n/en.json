@@ -112,5 +112,20 @@
   "common.close": "Close",
   "common.back": "Back",
   "settings.token.keyInvalid": "Connected, but Anthropic rejected the API key ({hint}). Re-create it at console.anthropic.com → API Keys, paste it into .dev.vars with no quotes or spaces, then restart npm run dev.",
-  "settings.token.keyError": "Connected, but the Anthropic API returned an error: {msg}"
+  "settings.token.keyError": "Connected, but the Anthropic API returned an error: {msg}",
+  "talk.ready": "Tap the mic to talk",
+  "talk.tapToSend": "Tap to send",
+  "talk.transcribing": "Transcribing…",
+  "talk.pushHint": "Tap, talk, tap again.",
+  "settings.speech": "Speech input",
+  "settings.micMode": "Mic mode",
+  "settings.micMode.auto": "Auto (always on for PC, tap to talk on iPhone)",
+  "settings.micMode.continuous": "Always listening",
+  "settings.micMode.push": "Tap to talk",
+  "settings.sttEngine": "Recognition engine",
+  "settings.sttEngine.browser": "Browser (free, Chrome / Safari)",
+  "settings.sttEngine.server": "Server (records and transcribes via API)",
+  "settings.sttEngine.help": "Server mode needs STT_API_KEY on the Worker. Use it if Safari's recognition is unreliable.",
+  "settings.sttEngine.missing": "Server speech-to-text is not configured on the Worker (STT_API_KEY).",
+  "settings.sttEngine.ok": "Server speech-to-text is configured."
 }

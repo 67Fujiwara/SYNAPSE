@@ -17,6 +17,14 @@ migrations_dir = "migrations"
 binding = "BUCKET"
 bucket_name = "synapse-storage"
 
+# The built web app (dist/) is served by this same Worker, so one `npm run deploy`
+# gives one https URL for both the UI and /api — no CORS, no second project.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
 [vars]
 # Non-secret defaults. Override per environment if needed.
 DEFAULT_CHAT_MODEL = "claude-sonnet-5-5"
@@ -25,6 +33,10 @@ DEFAULT_REVIEW_MODEL = "claude-opus-5-5"
 # Secrets (never commit):
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler secret put APP_TOKEN
+# Optional — server-side speech-to-text fallback for phones whose browser
+# recognition is unreliable (any OpenAI-compatible /audio/transcriptions API):
+#   wrangler secret put STT_API_KEY
+#   STT_BASE_URL (default https://api.openai.com/v1), STT_MODEL (default whisper-1) go in [vars]
 # For local dev put them in .dev.vars (see .dev.vars.example).
 
 # Prompts live as Markdown files so they can be edited without touching code.

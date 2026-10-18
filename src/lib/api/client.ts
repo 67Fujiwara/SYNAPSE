@@ -53,7 +53,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () =>
-    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'error'; keyMessage: string; keyHint: string }>(
+    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'error'; keyMessage: string; keyHint: string; stt: boolean }>(
       '/api/health',
     ),
   stats: (days = 7) => request<StatsResponse>(`/api/stats?days=${days}`),
@@ -65,6 +65,23 @@ export const api = {
   scenario: (description: string, model?: string) =>
     request<{ scenario: string }>('/api/scenario', { method: 'POST', body: JSON.stringify({ description, model }) }),
   deleteAll: () => request<{ ok: boolean }>('/api/data', { method: 'DELETE' }),
+  /** Upload a recorded clip; resolves to the transcript. */
+  transcribe: async (blob: Blob): Promise<string> => {
+    const form = new FormData();
+    form.append('audio', blob, 'speech');
+    const res = await fetch('/api/transcribe', { method: 'POST', headers: headers(false), body: form });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try {
+        const body = (await res.json()) as { error?: string };
+        if (body.error) msg = body.error;
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, msg);
+    }
+    return ((await res.json()) as { text: string }).text;
+  },
 };
 
 /**
