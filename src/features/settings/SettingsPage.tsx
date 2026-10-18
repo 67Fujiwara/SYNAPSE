@@ -58,11 +58,11 @@ export function SettingsPage() {
     try {
       const h = await api.health();
       if (h.keyStatus === 'ok') setConn(t('settings.token.ok'));
-      if (settings.sttEngine === 'server') setSttNote(h.stt ? t('settings.sttEngine.ok') : t('settings.sttEngine.missing'));
       else if (h.keyStatus === 'missing') setConn(t('settings.token.noKey'));
       else if (h.keyStatus === 'invalid') setConn(t('settings.token.keyInvalid', { hint: h.keyHint }));
       else if (h.keyStatus === 'workspace') setConn(t('settings.token.keyWorkspace'));
       else setConn(t('settings.token.keyError', { msg: h.keyMessage }));
+      if (settings.sttEngine === 'server') setSttNote(h.stt ? t('settings.sttEngine.ok') : t('settings.sttEngine.missing'));
     } catch (e) {
       setConn(t('settings.token.bad', { msg: e instanceof Error ? e.message : String(e) }));
     }
