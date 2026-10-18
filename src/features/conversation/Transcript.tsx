@@ -3,7 +3,24 @@ import type { DisplayTurn } from './useConversation';
 import { cx } from '@/lib/util';
 
 /** Subtitle-style transcript: AI large, user slightly smaller; interim text in muted color. */
-export function Transcript({ turns, draft, interim, placeholder }: { turns: DisplayTurn[]; draft: string; interim: string; placeholder: string }) {
+export function Transcript({
+  turns,
+  draft,
+  interim,
+  placeholder,
+  jaMode,
+  onToggleJa,
+  jaLabel,
+}: {
+  turns: DisplayTurn[];
+  draft: string;
+  interim: string;
+  placeholder: string;
+  /** 'always' (Low) shows subtitles; 'tap' (Medium) hides them behind a button; 'off' (High) never. */
+  jaMode: 'always' | 'tap' | 'off';
+  onToggleJa: (id: string) => void;
+  jaLabel: string;
+}) {
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -18,6 +35,27 @@ export function Transcript({ turns, draft, interim, placeholder }: { turns: Disp
           <span className="mr-2 inline-block w-7 text-xs uppercase tracking-wider text-ink-3 align-middle">{t.role === 'ai' ? 'AI' : 'You'}</span>
           {t.text}
           {t.streaming && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-pulse bg-accent align-middle" />}
+          {t.role === 'ai' && jaMode !== 'off' && t.ja && (
+            <div className="ml-9 mt-1 flex items-start gap-2 text-[0.72em] font-normal leading-snug text-ink-2">
+              {jaMode === 'tap' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleJa(t.id);
+                  }}
+                  className={cx(
+                    'shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-none transition',
+                    t.jaShown ? 'border-accent/60 text-accent' : 'border-line text-ink-3 hover:text-ink',
+                  )}
+                  aria-pressed={Boolean(t.jaShown)}
+                >
+                  {jaLabel}
+                </button>
+              )}
+              {(jaMode === 'always' || t.jaShown) && <span>{t.ja}</span>}
+            </div>
+          )}
         </div>
       ))}
       {(draft || interim) && (

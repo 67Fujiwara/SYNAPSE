@@ -29,6 +29,8 @@ run_worker_first = ["/api/*"]
 # Non-secret defaults. Override per environment if needed.
 DEFAULT_CHAT_MODEL = "claude-sonnet-5-5"
 DEFAULT_REVIEW_MODEL = "claude-opus-5-5"
+# Subtitles under the AI's lines (immersion Medium/Low). Small, fast, cheap.
+DEFAULT_TRANSLATE_MODEL = "claude-haiku-5-5"
 
 # Secrets (never commit):
 #   wrangler secret put ANTHROPIC_API_KEY

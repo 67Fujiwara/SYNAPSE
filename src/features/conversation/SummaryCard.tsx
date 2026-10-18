@@ -21,6 +21,7 @@ export function SummaryCard({ payload, saved, onAgain }: { payload: SessionPaylo
           <Stat label={t('summary.wpm')} value={Math.round(s.wpm)} />
           <Stat label={t('summary.fillers')} value={s.fillerRate.toFixed(1)} />
           <Stat label={t('summary.unique')} value={s.uniqueWords} />
+          {s.jpHintCount > 0 && <Stat label={t('summary.jpHints')} value={s.jpHintCount} />}
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-ink-2">{saved === 'queued' ? t('summary.queued') : saved === 'synced' ? t('summary.saved') : '…'}</span>

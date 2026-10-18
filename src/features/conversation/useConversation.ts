@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage, Immersion, Mode, Session, SessionPayload, SttEngine, Turn } from '@shared/types';
-import { streamChat } from '@/lib/api/client';
+import { api, streamChat } from '@/lib/api/client';
 import type { Recognizer } from '@/lib/speech/types';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
 import { ServerRecognizer } from '@/lib/speech/server-recognizer';
@@ -26,6 +26,10 @@ export interface DisplayTurn {
   startedAt: string;
   endedAt: string;
   streaming?: boolean;
+  /** Japanese subtitle (immersion Medium/Low). Fetched after the line is complete. */
+  ja?: string;
+  /** Medium: the learner tapped to reveal the subtitle. */
+  jaShown?: boolean;
 }
 
 export interface ConversationConfig {
@@ -103,6 +107,7 @@ export function useConversation(cfg: ConversationConfig) {
   const sessionId = useRef(uuid());
   const sessionStart = useRef<string | null>(null);
   const ttsGeneration = useRef(0);
+  const jpHints = useRef(0);
 
   const setPhase = (p: Phase) => {
     phaseRef.current = p;
@@ -110,6 +115,22 @@ export function useConversation(cfg: ConversationConfig) {
   };
   const phase = () => phaseRef.current as Phase;
   const pushTurns = () => setState((s) => ({ ...s, turns: [...turnsRef.current] }));
+
+  /** Immersion Medium/Low: attach a Japanese subtitle once the AI line is final. Never blocks TTS. */
+  const subtitle = (turn: DisplayTurn) => {
+    if (cfgRef.current.immersion === 'high' || !turn.text.trim()) return;
+    void api
+      .translate(turn.text)
+      .then(({ ja }) => {
+        if (!ja) return;
+        turn.ja = ja;
+        if (cfgRef.current.immersion === 'low') turn.jaShown = true;
+        pushTurns();
+      })
+      .catch(() => {
+        /* subtitles are best-effort */
+      });
+  };
 
   const clearSilence = () => {
     if (silenceTimer.current !== null) {
@@ -199,8 +220,10 @@ export function useConversation(cfg: ConversationConfig) {
     }
     aiTurn.streaming = false;
     aiTurn.endedAt = new Date().toISOString();
-    if (full.trim()) history.current.push({ role: 'assistant', content: full.trim() });
-    else turnsRef.current = turnsRef.current.filter((t) => t !== aiTurn);
+    if (full.trim()) {
+      history.current.push({ role: 'assistant', content: full.trim() });
+      subtitle(aiTurn);
+    } else turnsRef.current = turnsRef.current.filter((t) => t !== aiTurn);
     pushTurns();
 
     if (gen === ttsGeneration.current) {
@@ -218,9 +241,11 @@ export function useConversation(cfg: ConversationConfig) {
     recognizer.stop();
     setPhase('speaking');
     const gen = ++ttsGeneration.current;
-    turnsRef.current.push({ id: uuid(), role: 'ai', text, startedAt: new Date().toISOString(), endedAt: new Date().toISOString() });
+    const turn: DisplayTurn = { id: uuid(), role: 'ai', text, startedAt: new Date().toISOString(), endedAt: new Date().toISOString() };
+    turnsRef.current.push(turn);
     history.current.push({ role: 'assistant', content: text });
     pushTurns();
+    subtitle(turn);
     await synth.speak(text, { rate: cfgRef.current.rate, voice: cfgRef.current.voice });
     if (gen === ttsGeneration.current && phase() === 'speaking') {
       lastAiEnd.current = Date.now();
@@ -295,6 +320,7 @@ export function useConversation(cfg: ConversationConfig) {
       turnsRef.current = [];
       speakingMs.current = 0;
       latencies.current = [];
+      jpHints.current = 0;
       setState({ ...INITIAL, phase: 'listening', startedAt: sessionStart.current });
       phaseRef.current = 'listening';
       if (opening) await speakAi(opening);
@@ -330,6 +356,15 @@ export function useConversation(cfg: ConversationConfig) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recognizer]);
+
+  /** Medium immersion: show/hide the Japanese subtitle of one AI line. Reveals are counted. */
+  const toggleJa = useCallback((id: string) => {
+    const t = turnsRef.current.find((x) => x.id === id);
+    if (!t || !t.ja) return;
+    t.jaShown = !t.jaShown;
+    if (t.jaShown) jpHints.current += 1;
+    pushTurns();
+  }, []);
 
   /** Tap during AI speech: stop TTS, drop the queue, listen again. */
   const interrupt = useCallback(() => {
@@ -373,7 +408,7 @@ export function useConversation(cfg: ConversationConfig) {
       ...m,
       errorRate: 0,
       avgLatencySec: lat.length ? Math.round((lat.reduce((a, b) => a + b, 0) / lat.length) * 10) / 10 : 0,
-      jpHintCount: 0,
+      jpHintCount: jpHints.current,
       xp: computeXp(m),
     };
     return { session, turns };
@@ -387,6 +422,7 @@ export function useConversation(cfg: ConversationConfig) {
     start,
     send: () => void send(),
     tapMic,
+    toggleJa,
     interrupt,
     end,
   };

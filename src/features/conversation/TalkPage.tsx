@@ -213,7 +213,15 @@ export function TalkPage() {
         </button>
       </div>
 
-      <Transcript turns={state.turns} draft={state.draft} interim={state.interim} placeholder={t('talk.sayHi')} />
+      <Transcript
+        turns={state.turns}
+        draft={state.draft}
+        interim={state.interim}
+        placeholder={t('talk.sayHi')}
+        jaMode={settings.immersion === 'low' ? 'always' : settings.immersion === 'medium' ? 'tap' : 'off'}
+        onToggleJa={conv.toggleJa}
+        jaLabel={t('talk.ja')}
+      />
 
       {errorText && <div className="mx-auto mb-2 max-w-3xl px-5 text-center text-sm text-danger">{errorText}</div>}
 

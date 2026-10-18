@@ -65,6 +65,7 @@ export const api = {
   scenario: (description: string, model?: string) =>
     request<{ scenario: string }>('/api/scenario', { method: 'POST', body: JSON.stringify({ description, model }) }),
   deleteAll: () => request<{ ok: boolean }>('/api/data', { method: 'DELETE' }),
+  translate: (text: string) => request<{ ja: string }>('/api/translate', { method: 'POST', body: JSON.stringify({ text }) }),
   /** Upload a recorded clip; resolves to the transcript. */
   transcribe: async (blob: Blob): Promise<string> => {
     const form = new FormData();

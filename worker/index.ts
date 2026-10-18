@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Env } from './env';
 import type { ChatEvent, ChatRequest, SessionPayload, Settings } from '../shared/types';
-import { buildChatSystem, SCENARIO_GENERATOR_SYSTEM } from './prompts';
+import { buildChatSystem, SCENARIO_GENERATOR_SYSTEM, TRANSLATE_SYSTEM } from './prompts';
 import { deleteAll, getSession, listSessions, saveSession } from './db/sessions';
 import { getStats } from './db/stats';
 import { getSettings, putSettings } from './db/settings';
@@ -164,6 +164,27 @@ app.post('/api/scenario', async (c) => {
     .join('')
     .trim();
   return c.json({ scenario: text });
+});
+
+// --- Japanese subtitle for one AI line (immersion Medium/Low) ------------------
+app.post('/api/translate', async (c) => {
+  const { text } = (await c.req.json()) as { text?: string };
+  if (!text?.trim()) return c.json({ error: 'text required' }, 400);
+  const client = anthropic(c.env);
+  const res = await client.messages.create({
+    model: c.env.DEFAULT_TRANSLATE_MODEL || 'claude-haiku-5-5',
+    max_tokens: 400,
+    system: [{ type: 'text', text: TRANSLATE_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: text.trim().slice(0, 1200) }],
+    output_config: { effort: 'low' },
+  });
+  if (res.stop_reason === 'refusal') return c.json({ ja: '' });
+  const ja = res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+  return c.json({ ja });
 });
 
 // --- Server-side speech-to-text (optional) -------------------------------------

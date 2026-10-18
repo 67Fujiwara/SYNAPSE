@@ -45,3 +45,16 @@
 - **iOS 音声解錠**: `WebSpeechSynthesizer.unlock()` を Start talking のクリック内で呼ぶ。`MicAnalyser` は `AudioContext.resume()`
 - 検証: tsc / vitest 14 / build 通過。iPhone UA のヘッドレス Chromium で 開始→ready→タップ→聞く→タップ→送信→（API エラー表示）→ready を確認、コンソールエラー 0。**実機 Safari は未確認**（チェックリストは docs/iphone.md）
 - 今日のサポートで分かったこと: `.dev.vars` に curl コマンドをそのまま貼ってしまうケースがあった。Test connection がキーの先頭・末尾・文字数を出すようにしたので、次からはそこで気づける
+
+## 2026-10-18 (続き) — 実機で会話成立 / 日本語字幕
+
+- ユーザーの PC Chrome で会話が成立した（`sk-ant-usr-` 形式のキー + ワークスペース）。詰まった点は順に:
+  `.dev.vars` に curl コマンドを貼った → 1 行目にワークスペース ID を貼った → キーの形式。Test connection を
+  `messages.countTokens`（無料）で検査するようにしたので、認証・ワークスペースのどちらで落ちたかを設定画面で言える
+- **`sk-ant-usr-` キーは `anthropic-workspace-id` ヘッダーが必要**（400 で教えてくれる）。`ANTHROPIC_WORKSPACE_ID` を
+  `defaultHeaders` で付ける。ワークスペースの中で作ったキーなら不要
+- **日本語字幕**（要望「モードによって英文の下に日本語」）: `/api/translate`（`claude-haiku-5-5`、`worker/prompts/translate.md`）。
+  AI の行が確定してから裏で取りに行き `DisplayTurn.ja` に付ける（TTS を待たせない）。表示は没入度で分岐:
+  Low = 常に表示 / Medium = 「訳」ボタンで開く（開いた回数を `jpHintCount` に記録、サマリーに出す）/ High = 取りに行かない。
+  Playwright で 3 段を確認（`/api/translate` はモック）
+- 気づき: React は `aria-pressed={undefined}` を属性ごと落とす。テストのセレクタが外れた。`Boolean()` で明示

@@ -8,6 +8,7 @@ export interface Env {
   APP_TOKEN: string;
   DEFAULT_CHAT_MODEL?: string;
   DEFAULT_REVIEW_MODEL?: string;
+  DEFAULT_TRANSLATE_MODEL?: string;
   /** Optional server-side speech-to-text (OpenAI-compatible /audio/transcriptions). */
   STT_API_KEY?: string;
   STT_BASE_URL?: string;

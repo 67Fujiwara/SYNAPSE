@@ -83,9 +83,9 @@
   "settings.token.bad": "接続できません: {msg}",
   "settings.language": "表示言語",
   "settings.immersion": "没入度",
-  "settings.immersion.high": "High — 英語のみ。日本語で話しても英語で返す",
-  "settings.immersion.medium": "Medium — 日本語の単語は英語で教える",
-  "settings.immersion.low": "Low — 日本語の文はまず英訳して提示",
+  "settings.immersion.high": "High — 英語のみ。日本語は一切出さない",
+  "settings.immersion.medium": "Medium — 日本語訳は隠す。「訳」を押したときだけ表示（回数を記録）",
+  "settings.immersion.low": "Low — AI の英文の下に常に日本語訳",
   "settings.voice": "AI の声",
   "settings.voice.auto": "自動",
   "settings.rate": "読み上げ速度",
@@ -128,5 +128,7 @@
   "settings.sttEngine.help": "サーバー方式は Worker に STT_API_KEY が必要。Safari の認識が不安定なときに使う",
   "settings.sttEngine.missing": "Worker にサーバー文字起こしが設定されていません（STT_API_KEY）。",
   "settings.sttEngine.ok": "サーバー文字起こしは設定済みです。",
-  "settings.token.keyWorkspace": "接続できましたが、このキーはワークスペースに紐づいていません（sk-ant-usr-… 形式）。.dev.vars に ANTHROPIC_WORKSPACE_ID=<ワークスペース ID> を 1 行足して再起動する（Console → Settings → Workspaces で ID をコピー）か、ワークスペースの中で作ったキーに替えてください（Console → Workspaces → 自分のワークスペース → API Keys）。"
+  "settings.token.keyWorkspace": "接続できましたが、このキーはワークスペースに紐づいていません（sk-ant-usr-… 形式）。.dev.vars に ANTHROPIC_WORKSPACE_ID=<ワークスペース ID> を 1 行足して再起動する（Console → Settings → Workspaces で ID をコピー）か、ワークスペースの中で作ったキーに替えてください（Console → Workspaces → 自分のワークスペース → API Keys）。",
+  "talk.ja": "訳",
+  "summary.jpHints": "日本語ヒント"
 }
