@@ -1,4 +1,4 @@
-import type { ChatEvent, ChatRequest, SessionPayload, Settings, StatsResponse } from '@shared/types';
+import type { ChatEvent, ChatRequest, NewShadowItem, Review, ReviewSummary, SessionPayload, Settings, ShadowItem, ShadowMode, StatsResponse, Turn, WordInfo } from '@shared/types';
 import { localDate } from '../util';
 
 const TOKEN_KEY = 'synapse.token';
@@ -66,6 +66,19 @@ export const api = {
     request<{ scenario: string }>('/api/scenario', { method: 'POST', body: JSON.stringify({ description, model }) }),
   deleteAll: () => request<{ ok: boolean }>('/api/data', { method: 'DELETE' }),
   translate: (text: string) => request<{ ja: string }>('/api/translate', { method: 'POST', body: JSON.stringify({ text }) }),
+  // Phase 2
+  review: (sessionId: string, turns: Pick<Turn, 'role' | 'text'>[], model?: string) =>
+    request<Review>('/api/review', { method: 'POST', body: JSON.stringify({ sessionId, turns, model }) }),
+  reviews: (limit = 20) => request<ReviewSummary[]>(`/api/reviews?limit=${limit}`),
+  reviewOf: (sessionId: string) => request<Review>(`/api/review/${encodeURIComponent(sessionId)}`),
+  sessions: (limit = 30) => request<import('@shared/types').Session[]>(`/api/sessions?limit=${limit}`),
+  session: (id: string) => request<SessionPayload>(`/api/sessions/${encodeURIComponent(id)}`),
+  word: (word: string, context: string) => request<WordInfo>('/api/word', { method: 'POST', body: JSON.stringify({ word, context }) }),
+  shadowItems: () => request<ShadowItem[]>('/api/shadow/items'),
+  addShadowItems: (items: NewShadowItem[]) => request<ShadowItem[]>('/api/shadow/items', { method: 'POST', body: JSON.stringify({ items }) }),
+  deleteShadowItem: (id: string) => request<{ ok: boolean }>(`/api/shadow/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  shadowAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode }) =>
+    request<ShadowItem>('/api/shadow/attempts', { method: 'POST', body: JSON.stringify(a) }),
   /** Upload a recorded clip; resolves to the transcript. */
   transcribe: async (blob: Blob): Promise<string> => {
     const form = new FormData();

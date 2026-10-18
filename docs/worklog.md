@@ -58,3 +58,19 @@
   Low = 常に表示 / Medium = 「訳」ボタンで開く（開いた回数を `jpHintCount` に記録、サマリーに出す）/ High = 取りに行かない。
   Playwright で 3 段を確認（`/api/translate` はモック）
 - 気づき: React は `aria-pressed={undefined}` を属性ごと落とす。テストのセレクタが外れた。`Boolean()` で明示
+
+## 2026-10-18 (続き) — Phase 2
+
+- **レビュー** `/api/review`: `client.messages.parse` + `zodOutputFormat`（zod は **v4** が必要。v3 だと SDK の型が合わない）。
+  モデルは `claude-opus-5-5`、`effort: 'medium'`。保存時に `sessions.error_rate` = 修正数 / 100 語 を書き戻す。
+  会話終了 → `persistSession` が synced のときだけ生成（オフラインならレビュー画面の「レビューを作る」で後から）
+- **シャドーイング**: 採点は `src/lib/align`（§4.2 どおり。置換コストは 同一 0 / 近い 0.5 / 違う 1 で DP、スコア = (一致 + 惜しい×0.5) / 参照語数）。
+  間隔反復は `shared/srs.ts`（Worker の `recordAttempt` が計算）。カラオケは `useKaraoke`（`boundary` が来なければ文字数比例のタイマー）。
+  Practice の認識は設定の `sttEngine` に従う（ブラウザ / サーバー）。final が来て 0.9 秒で採点、無音は 6 秒で打ち切り
+- **単語ポップアップ** `/api/word`（haiku 5.5、構造化出力）。`Transcript` の AI 行を語ごとの `<button>` にした（`Tappable`）。
+  没入度 High では日本語を出さない。「この文をシャドーイングに保存」は含んでいる文を `source: 'conversation'` で登録
+- マイグレーション `0002_phase2.sql`（`reviews.term_notes`, `shadow_attempts.mode`）。**本番は `npm run db:migrate:remote` を忘れない**
+- 検証: tsc / vitest 21 / build（JS 655KB, gzip 204KB）。Worker はローカル D1 で curl（重複スキップ・55%→翌日・95%→3 日・Recall で習得 +1）。
+  ブラウザは AI 系の 3 エンドポイントをモックして デッキ → 練習 → 採点 → レビュー → 単語 → サマリー を通した
+- 未着手: iPhone Chrome 向けの Workers AI Whisper（ユーザーの指示で Phase 2 を先に）。`[ai] binding="AI"` と
+  `@cf/openai/whisper-large-v3-turbo`（入力 `audio: base64`）で `/api/transcribe` を置き換える。型は workers-types にある

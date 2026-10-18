@@ -1,11 +1,26 @@
 import { Link } from 'react-router-dom';
-import type { SessionPayload } from '@shared/types';
+import type { Review, SessionPayload } from '@shared/types';
+import { ReviewView } from '@/features/review/ReviewPage';
 import { Card, Stat } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
 import { fmtMinutes } from '@/lib/util';
 
-export function SummaryCard({ payload, saved, onAgain }: { payload: SessionPayload; saved: 'synced' | 'queued' | null; onAgain: () => void }) {
+export function SummaryCard({
+  payload,
+  saved,
+  onAgain,
+  review,
+  reviewState,
+  reviewErr,
+}: {
+  payload: SessionPayload;
+  saved: 'synced' | 'queued' | null;
+  onAgain: () => void;
+  review: Review | null;
+  reviewState: 'idle' | 'loading' | 'error';
+  reviewErr: string | null;
+}) {
   const { t } = useT();
   const s = payload.session;
   return (
@@ -32,11 +47,23 @@ export function SummaryCard({ payload, saved, onAgain }: { payload: SessionPaylo
           <Link to="/">
             <Button variant="outline">{t('summary.home')}</Button>
           </Link>
-          <Button variant="ghost" disabled>
-            {t('summary.review')}
-          </Button>
+          {review && (
+            <Link to="/review">
+              <Button variant="ghost">{t('review.open')}</Button>
+            </Link>
+          )}
         </div>
       </Card>
+
+      <div className="mt-5">
+        {reviewState === 'loading' && (
+          <div className="card flex items-center gap-3 p-4 text-sm text-ink-2">
+            <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-accent" /> {t('review.generating')}
+          </div>
+        )}
+        {reviewState === 'error' && <p className="text-sm text-danger">{t('review.failed', { msg: reviewErr ?? '' })}</p>}
+        {review && <ReviewView review={review} compact />}
+      </div>
     </div>
   );
 }

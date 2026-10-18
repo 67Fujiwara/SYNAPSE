@@ -110,3 +110,83 @@ export type ChatEvent =
   | { type: 'text'; text: string }
   | { type: 'done'; stopReason: string | null; model: string }
   | { type: 'error'; message: string };
+
+// ---- Phase 2: review -----------------------------------------------------------
+
+export type CorrectionTag = 'grammar' | 'vocabulary' | 'natural' | 'term';
+
+export interface Correction {
+  original: string;
+  fixed: string;
+  reason: string;
+  tag: CorrectionTag;
+}
+
+export interface TermNote {
+  heard: string;
+  standard: string;
+  note: string;
+}
+
+export interface Review {
+  id: string;
+  sessionId: string;
+  corrections: Correction[];
+  betterPhrases: string[];
+  wins: string[];
+  termNotes: TermNote[];
+  createdAt: string;
+}
+
+/** Review list entry: the review plus the session it belongs to (for dates/mode). */
+export interface ReviewSummary {
+  review: Review;
+  session: Pick<Session, 'id' | 'mode' | 'endedAt' | 'words' | 'speakingSec'>;
+}
+
+// ---- Phase 2: shadowing -----------------------------------------------------------
+
+export type ShadowSource = 'conversation' | 'review' | 'bank' | 'manual';
+
+export interface ShadowItem {
+  id: string;
+  text: string;
+  source: ShadowSource;
+  jaText: string | null;
+  dueAt: string | null; // null = never attempted (due now)
+  intervalDays: number;
+  bestScore: number;
+  bestWpm: number;
+  masteredCount: number; // consecutive Recall-mode passes >= MASTER_SCORE
+  attempts: number;
+  createdAt: string;
+}
+
+export interface ShadowAttempt {
+  id: string;
+  itemId: string;
+  at: string;
+  score: number;
+  wpm: number;
+  speed: number;
+  mode: ShadowMode;
+}
+
+export type ShadowMode = 'listen' | 'overlap' | 'shadow' | 'recall';
+
+export interface NewShadowItem {
+  text: string;
+  source: ShadowSource;
+  jaText?: string | null;
+}
+
+// ---- Phase 2: word popup ---------------------------------------------------------
+
+export interface WordInfo {
+  word: string;
+  ipa: string;
+  pos: string;
+  definition: string;
+  ja: string;
+  example: string;
+}

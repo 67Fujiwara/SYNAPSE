@@ -97,24 +97,24 @@ export function Dashboard() {
             <span className="block text-xs text-ink-2">{t('home.talk.sub')}</span>
           </span>
         </Link>
-        <div className="card flex items-center gap-4 p-5 opacity-60">
-          <span className="grid h-12 w-12 place-items-center rounded-xl bg-surface-2 text-ink-3">
+        <Link to="/shadow" className="card group flex items-center gap-4 p-5 transition hover:border-accent/60 hover:shadow-glow">
+          <span className="grid h-12 w-12 place-items-center rounded-xl bg-lime/15 text-lime">
             <Repeat />
           </span>
           <span>
             <span className="block font-display text-lg font-semibold">{t('home.shadow')}</span>
             <span className="block text-xs text-ink-2">{t('home.shadow.sub')}</span>
           </span>
-        </div>
-        <div className="card flex items-center gap-4 p-5 opacity-60">
-          <span className="grid h-12 w-12 place-items-center rounded-xl bg-surface-2 text-ink-3">
+        </Link>
+        <Link to="/review" className="card group flex items-center gap-4 p-5 transition hover:border-accent/60 hover:shadow-glow">
+          <span className="grid h-12 w-12 place-items-center rounded-xl bg-warn/15 text-warn">
             <ClipboardCheck />
           </span>
           <span>
             <span className="block font-display text-lg font-semibold">{t('home.review')}</span>
             <span className="block text-xs text-ink-2">{t('home.review.sub')}</span>
           </span>
-        </div>
+        </Link>
       </div>
 
       <Card>

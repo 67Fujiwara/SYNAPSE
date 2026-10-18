@@ -8,6 +8,8 @@ import modeMyWork from './mode-mywork.md';
 import modeFree from './mode-free.md';
 import scenarioGenerator from './scenario-generator.md';
 import translate from './translate.md';
+import review from './review.md';
+import word from './word.md';
 import type { Immersion, Mode } from '../../shared/types';
 
 const IMMERSION: Record<Immersion, string> = {
@@ -36,3 +38,5 @@ export function buildChatSystem(mode: Mode, immersion: Immersion, scenario?: str
 
 export const SCENARIO_GENERATOR_SYSTEM = scenarioGenerator.trim();
 export const TRANSLATE_SYSTEM = translate.trim();
+export const REVIEW_SYSTEM = review.trim();
+export const WORD_SYSTEM = word.trim();

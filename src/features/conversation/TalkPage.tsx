@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Briefcase, Coffee, MessageSquare, Mic, MicOff, Send, Wrench, X } from 'lucide-react';
-import type { Mode, SessionPayload } from '@shared/types';
+import type { Mode, Review, SessionPayload } from '@shared/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useT } from '@/i18n';
@@ -12,6 +12,7 @@ import { useConversation } from './useConversation';
 import { Transcript } from './Transcript';
 import { Waveform } from './Waveform';
 import { SummaryCard } from './SummaryCard';
+import { WordPopover } from './WordPopover';
 import { cx, fmtMinutes } from '@/lib/util';
 import { isIOS } from '@/lib/speech/platform';
 
@@ -46,6 +47,10 @@ export function TalkPage() {
   const [result, setResult] = useState<SessionPayload | null>(null);
   const [saved, setSaved] = useState<'synced' | 'queued' | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [word, setWord] = useState<{ word: string; sentence: string } | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const [reviewState, setReviewState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [reviewErr, setReviewErr] = useState<string | null>(null);
 
   // 'auto' = always-on mic on desktop, push-to-talk on iOS (Safari can't restart
   // recognition without a gesture). The server engine is push-to-talk by nature.
@@ -100,17 +105,33 @@ export function TalkPage() {
   const finish = async () => {
     const payload = conv.end();
     if (!payload) return;
+    setWord(null);
     setResult(payload);
-    if (payload.turns.some((x) => x.role === 'user')) {
-      setSaved(await persistSession(payload));
-    } else {
+    setReview(null);
+    setReviewErr(null);
+    const hasUser = payload.turns.some((x) => x.role === 'user');
+    if (!hasUser) {
       setSaved('synced'); // nothing to save
+      return;
+    }
+    const status = await persistSession(payload);
+    setSaved(status);
+    // Phase 2: review with the accurate model once the session is on the server.
+    if (status === 'synced') {
+      setReviewState('loading');
+      try {
+        setReview(await api.review(payload.session.id, payload.turns.map((x) => ({ role: x.role, text: x.text })), settings.reviewModel));
+        setReviewState('idle');
+      } catch (e) {
+        setReviewState('error');
+        setReviewErr(e instanceof Error ? e.message : String(e));
+      }
     }
   };
 
   // ---- Summary ----------------------------------------------------------------
   if (result) {
-    return <SummaryCard payload={result} saved={saved} onAgain={() => setResult(null)} />;
+    return <SummaryCard payload={result} saved={saved} onAgain={() => setResult(null)} review={review} reviewState={reviewState} reviewErr={reviewErr} />;
   }
 
   // ---- Mode picker --------------------------------------------------------------
@@ -221,7 +242,9 @@ export function TalkPage() {
         jaMode={settings.immersion === 'low' ? 'always' : settings.immersion === 'medium' ? 'tap' : 'off'}
         onToggleJa={conv.toggleJa}
         jaLabel={t('talk.ja')}
+        onWord={(w, sentence) => setWord({ word: w, sentence })}
       />
+      {word && <WordPopover word={word.word} sentence={word.sentence} onClose={() => setWord(null)} />}
 
       {errorText && <div className="mx-auto mb-2 max-w-3xl px-5 text-center text-sm text-danger">{errorText}</div>}
 

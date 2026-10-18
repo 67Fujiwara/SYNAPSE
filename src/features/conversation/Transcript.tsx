@@ -11,6 +11,7 @@ export function Transcript({
   jaMode,
   onToggleJa,
   jaLabel,
+  onWord,
 }: {
   turns: DisplayTurn[];
   draft: string;
@@ -20,6 +21,8 @@ export function Transcript({
   jaMode: 'always' | 'tap' | 'off';
   onToggleJa: (id: string) => void;
   jaLabel: string;
+  /** Tap on a word of an AI line (word popup). */
+  onWord?: (word: string, sentence: string) => void;
 }) {
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -33,7 +36,7 @@ export function Transcript({
       {turns.map((t) => (
         <div key={t.id} className={cx('transcript-text', t.role === 'ai' ? 'text-ink font-medium' : 'text-ink-2 text-[0.9em]')}>
           <span className="mr-2 inline-block w-7 text-xs uppercase tracking-wider text-ink-3 align-middle">{t.role === 'ai' ? 'AI' : 'You'}</span>
-          {t.text}
+          {t.role === 'ai' && !t.streaming && onWord ? <Tappable text={t.text} onWord={onWord} /> : t.text}
           {t.streaming && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-pulse bg-accent align-middle" />}
           {t.role === 'ai' && jaMode !== 'off' && t.ja && (
             <div className="ml-9 mt-1 flex items-start gap-2 text-[0.72em] font-normal leading-snug text-ink-2">
@@ -67,5 +70,32 @@ export function Transcript({
       )}
       <div ref={bottom} />
     </div>
+  );
+}
+
+/** Splits a sentence into tappable words (punctuation stays attached visually, stripped for lookup). */
+function Tappable({ text, onWord }: { text: string; onWord: (word: string, sentence: string) => void }) {
+  const parts = text.split(/(\s+)/);
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (!p.trim()) return <span key={i}>{p}</span>;
+        const clean = p.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '');
+        if (!clean) return <span key={i}>{p}</span>;
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onWord(clean, text);
+            }}
+            className="rounded-sm hover:bg-accent/15 hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+          >
+            {p}
+          </button>
+        );
+      })}
+    </>
   );
 }

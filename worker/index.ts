@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { Env } from './env';
-import type { ChatEvent, ChatRequest, SessionPayload, Settings } from '../shared/types';
-import { buildChatSystem, SCENARIO_GENERATOR_SYSTEM, TRANSLATE_SYSTEM } from './prompts';
+import type { ChatEvent, ChatRequest, NewShadowItem, Review, SessionPayload, Settings, ShadowMode, WordInfo } from '../shared/types';
+import { buildChatSystem, REVIEW_SYSTEM, SCENARIO_GENERATOR_SYSTEM, TRANSLATE_SYSTEM, WORD_SYSTEM } from './prompts';
+import { getReview, listReviews, saveReview } from './db/reviews';
+import { addItems, deleteItem, listItems, recordAttempt } from './db/shadow';
 import { deleteAll, getSession, listSessions, saveSession } from './db/sessions';
 import { getStats } from './db/stats';
 import { getSettings, putSettings } from './db/settings';
@@ -218,6 +222,120 @@ app.post('/api/transcribe', async (c) => {
   }
   const data = (await res.json()) as { text?: string };
   return c.json({ text: (data.text ?? '').trim() });
+});
+
+// --- Review (Phase 2): post-session corrections with the accurate model ----------
+const ReviewSchema = z.object({
+  corrections: z
+    .array(
+      z.object({
+        original: z.string(),
+        fixed: z.string(),
+        reason: z.string(),
+        tag: z.enum(['grammar', 'vocabulary', 'natural', 'term']),
+      }),
+    )
+    .max(8),
+  betterPhrases: z.array(z.string()).max(3),
+  wins: z.array(z.string()).max(2),
+  termNotes: z.array(z.object({ heard: z.string(), standard: z.string(), note: z.string() })).max(5),
+});
+
+app.post('/api/review', async (c) => {
+  const body = (await c.req.json()) as { sessionId: string; turns: { role: 'user' | 'ai'; text: string }[]; model?: string };
+  if (!body.sessionId || !Array.isArray(body.turns)) return c.json({ error: 'sessionId and turns required' }, 400);
+  const userLines = body.turns.filter((t) => t.role === 'user' && t.text.trim());
+  if (userLines.length === 0) return c.json({ error: 'nothing to review' }, 422);
+
+  const transcript = body.turns
+    .slice(-80)
+    .map((t) => `${t.role === 'user' ? 'You' : 'AI'}: ${t.text.trim()}`)
+    .join('\n');
+
+  const client = anthropic(c.env);
+  const res = await client.messages.parse({
+    model: body.model || c.env.DEFAULT_REVIEW_MODEL || 'claude-opus-5-5',
+    max_tokens: 4000,
+    system: [{ type: 'text', text: REVIEW_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: `Transcript:\n${transcript}` }],
+    output_config: { format: zodOutputFormat(ReviewSchema), effort: 'medium' },
+  });
+  if (res.stop_reason === 'refusal' || !res.parsed_output) return c.json({ error: 'Review could not be generated.' }, 502);
+
+  const review: Review = {
+    id: crypto.randomUUID(),
+    sessionId: body.sessionId,
+    ...res.parsed_output,
+    createdAt: new Date().toISOString(),
+  };
+  await saveReview(c.env.DB, review);
+  return c.json(review);
+});
+
+app.get('/api/reviews', async (c) => {
+  const limit = Math.min(100, Number(c.req.query('limit') ?? 20) || 20);
+  return c.json(await listReviews(c.env.DB, limit));
+});
+
+app.get('/api/review/:sessionId', async (c) => {
+  const r = await getReview(c.env.DB, c.req.param('sessionId'));
+  return r ? c.json(r) : c.json({ error: 'not found' }, 404);
+});
+
+// --- Word popup (Phase 2) ---------------------------------------------------------
+const WordSchema = z.object({
+  word: z.string(),
+  ipa: z.string(),
+  pos: z.string(),
+  definition: z.string(),
+  ja: z.string(),
+  example: z.string(),
+});
+
+app.post('/api/word', async (c) => {
+  const { word, context } = (await c.req.json()) as { word?: string; context?: string };
+  if (!word?.trim()) return c.json({ error: 'word required' }, 400);
+  const client = anthropic(c.env);
+  const res = await client.messages.parse({
+    model: c.env.DEFAULT_TRANSLATE_MODEL || 'claude-haiku-5-5',
+    max_tokens: 400,
+    system: [{ type: 'text', text: WORD_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: `Word: ${word.trim().slice(0, 60)}\nSentence: ${(context ?? '').trim().slice(0, 400)}` }],
+    output_config: { format: zodOutputFormat(WordSchema), effort: 'low' },
+  });
+  if (res.stop_reason === 'refusal' || !res.parsed_output) return c.json({ error: 'No entry.' }, 502);
+  return c.json(res.parsed_output satisfies WordInfo);
+});
+
+// --- Shadowing deck (Phase 2) ------------------------------------------------------
+app.get('/api/shadow/items', async (c) => c.json(await listItems(c.env.DB)));
+
+app.post('/api/shadow/items', async (c) => {
+  const { items } = (await c.req.json()) as { items: NewShadowItem[] };
+  if (!Array.isArray(items) || items.length === 0) return c.json({ error: 'items required' }, 400);
+  const clean = items.slice(0, 200).filter((i) => typeof i.text === 'string' && i.text.trim().length > 0 && i.text.length <= 400);
+  const ids = clean.map(() => crypto.randomUUID());
+  return c.json(await addItems(c.env.DB, clean, ids, new Date().toISOString()));
+});
+
+app.delete('/api/shadow/items/:id', async (c) => {
+  await deleteItem(c.env.DB, c.req.param('id'));
+  return c.json({ ok: true });
+});
+
+app.post('/api/shadow/attempts', async (c) => {
+  const b = (await c.req.json()) as { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode };
+  if (!b.itemId || typeof b.score !== 'number') return c.json({ error: 'itemId and score required' }, 400);
+  const item = await recordAttempt(c.env.DB, {
+    id: crypto.randomUUID(),
+    itemId: b.itemId,
+    at: new Date().toISOString(),
+    score: Math.max(0, Math.min(100, Math.round(b.score))),
+    wpm: Number(b.wpm) || 0,
+    speed: Number(b.speed) || 1,
+    mode: b.mode ?? 'shadow',
+  });
+  return item ? c.json(item) : c.json({ error: 'not found' }, 404);
 });
 
 // --- Sessions ----------------------------------------------------------------

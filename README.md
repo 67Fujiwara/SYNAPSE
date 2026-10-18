@@ -12,7 +12,7 @@ Speech   : Web Speech API (認識・合成) — 差し替え可能な抽象化 (
 AI       : Anthropic Messages API (SSE ストリーミング)
 ```
 
-## 現在の状態: Phase 1（MVP）実装済み
+## 現在の状態: Phase 1 + Phase 2 実装済み
 
 | # | 内容 | 状態 |
 |---|---|---|
@@ -23,7 +23,14 @@ AI       : Anthropic Messages API (SSE ストリーミング)
 | — | オフライン時は IndexedDB に退避し、復帰後に D1 へ同期（冪等） | ✅ |
 | 1.5 | iPhone 準備: 1 URL 配信・PWA・iOS 音声解錠・タップして話すモード・サーバー認識の差し替え口（[docs/iphone.md](docs/iphone.md)） | ✅ コード / ⬜ 実機 |
 
-Phase 2（レビュー / シャドーイング / 単語ポップアップ）は未着手。ナビには枠だけある。
+| **Phase 2** | | |
+| 5 | セッション後レビュー（`claude-opus-5-5`、構造化出力）: 添削（元 → 修正 → 一言理由 → タグ）/ より自然な言い回し 3 つ / 良かった点 / 専門用語チェック。会話終了のサマリーに自動で出る。「シャドーイングに追加」 | ✅ |
+| 6 | シャドーイング: 素材（会話・レビュー・フレーズバンク 60 文・手入力）、カラオケ風ハイライト（`boundary` イベント、非対応は文字数比例）、Listen / Overlap / Shadow / Recall、単語アライメント採点（✅ ⚠ ❌、Jaro-Winkler 0.85 で「惜しい」）、リズム加点、間隔反復 1→3→7→14→30 日（70% 未満は翌日） | ✅ |
+| 7 | 単語ポップアップ: AI の文の単語をタップ → IPA・品詞・英語の定義・日本語（没入度 High では非表示）・例文、再生（通常 / ゆっくり）、「この文をシャドーイングに保存」 | ✅ |
+| 8 | My Work シナリオ生成 | ✅（Phase 1 で実装） |
+| — | 日本語字幕（没入度 Low = 常時 / Medium = 「訳」で開く・回数を記録 / High = なし） | ✅ |
+
+Phase 3（全グラフ・Level・週次レポート・ミッション・録音保存・外部 API 差し替え）は未着手。
 
 ---
 
@@ -103,6 +110,14 @@ iPhone では Safari でその URL を開き、「共有 → ホーム画面に�
 
 ---
 
+## 動作確認チェックリスト（Phase 2）
+
+- ✅ `/api/shadow/items` は同じ文を重複登録しない。`/api/shadow/attempts` で 70% 未満は翌日、以上は 1→3→7→14→30 日に伸びる。Recall で 90% 以上が続くと習得カウントが増える
+- ✅ 採点ロジック（正規化 / Jaro-Winkler / アライメント / 間隔反復）のユニットテスト 7 件
+- ✅ ブラウザ: フレーズバンク追加 → 練習 → 発話 → 単語ごとの色分けとスコア → 保存。レビュー画面の表示と「シャドーイングに追加」。会話中の単語タップ → ポップアップ。終了 → サマリーに良かった点と直す Top3
+- ⬜ 実機で本物のレビューを 1 回生成し、添削の質（直訳の専門用語を拾うか）を見る
+- ⬜ iPhone の Safari でカラオケのハイライトが動くか（`boundary` 非対応なら文字数比例に落ちる）
+
 ## 動作確認チェックリスト（Phase 1）
 
 実機（PC Chrome）で確認する項目。✅ は本リポジトリのテスト / ヘッドレス走行で確認済み、⬜ はマイク付きの実機で確認する。
@@ -127,7 +142,10 @@ iPhone では Safari でその URL を開き、「共有 → ホーム画面に�
 
 ```
 worker/
-  index.ts          Hono: /api/chat (SSE) /api/scenario /api/transcribe /api/sessions /api/stats /api/settings /api/data
+  index.ts          Hono: /api/chat (SSE) /api/scenario /api/translate /api/review /api/word /api/shadow/* /api/transcribe /api/sessions /api/stats /api/settings /api/data
+  db/               D1 クエリ層（sessions / stats / settings / reviews / shadow）
+  prompts/*.md      システムプロンプト（会話・没入度・モード・シナリオ生成・字幕・レビュー・単語）— 編集してよい
+shared/srs.ts       間隔反復（Worker と app で共用）
   db/               D1 クエリ層（sessions / stats / settings）
   prompts/*.md      システムプロンプト（共通 / 没入度 3 段 / モード 4 種 / シナリオ生成）— コードから分離。編集してよい
 migrations/         D1 マイグレーション
@@ -137,6 +155,10 @@ src/
   features/conversation/  会話（useConversation = 半二重の中核、Transcript、Waveform、SummaryCard、TalkPage）
   features/progress/      ダッシュボード・進捗（GoalRing、MinutesChart）
   features/settings/      設定（SettingsProvider = localStorage 即時 + D1 へ遅延保存）
+  features/review/        レビュー（一覧・表示・未レビューのセッションから生成。ReviewView はサマリーでも使う）
+  features/shadowing/     シャドーイング（デッキ・練習・カラオケ）
+  lib/align/        シャドーイングの採点（正規化・Jaro-Winkler・Levenshtein アライメント）
+  data/phrasebank.ts  フレーズバンク（日常 / ビジネス / 電気制御 各 20 文、日本語付き）
   lib/speech/       Recognizer / Synthesizer の抽象化、Web Speech 実装、サーバー認識 (MediaRecorder → /api/transcribe)、文分割、マイク波形、iOS 判定
   lib/metrics/      語数 / WPM / フィラー / 異なり語数
   lib/api/          Worker クライアント（SSE リーダー含む）
