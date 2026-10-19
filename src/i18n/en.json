@@ -270,5 +270,7 @@
   "settings.days": "days",
   "review.transcript": "Transcript & recordings",
   "review.play": "Play your recording",
-  "review.noRecordings": "No recordings for this session (enable “Save my recordings” in Settings)."
+  "review.noRecordings": "No recordings for this session (enable “Save my recordings” in Settings).",
+  "shadow.headphones": "Use earphones — the mic must not hear the playback.",
+  "shadow.leak": "The mic picked up the playback, so this attempt wasn't scored. Use earphones, or practice in Listen → Recall."
 }

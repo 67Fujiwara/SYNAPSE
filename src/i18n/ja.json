@@ -270,5 +270,7 @@
   "settings.days": "日",
   "review.transcript": "会話の記録と録音",
   "review.play": "自分の録音を再生",
-  "review.noRecordings": "このセッションの録音はありません（設定の「自分の録音を保存する」をオンに）。"
+  "review.noRecordings": "このセッションの録音はありません（設定の「自分の録音を保存する」をオンに）。",
+  "shadow.headphones": "イヤホン推奨 — スピーカーの音をマイクが拾うと採点できません。",
+  "shadow.leak": "マイクがお手本の再生音を拾ったので、この回は採点しませんでした。イヤホンを使うか、Listen → Recall で練習してください。"
 }

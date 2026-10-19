@@ -116,3 +116,8 @@
   対策 3 段: (1) VAD を厳しく（閾値 0.02 / ノイズ床×4、5 フレーム連続で初めて「声」、声の合計 600ms 未満のクリップは送らない）
   (2) Whisper の `segments[].no_speech_prob` > 0.6 または `avg_logprob` < -1.0 は捨てる、`vad_filter: true` を戻す
   (3) `shared/hallucination.ts` のブロックリスト（字幕の決まり文句・URL・同じ句の繰り返し・単語 1 つの "you" など）。テスト付き
+- 実機報告（シャドーイング Overlap）: 話している最中に全部緑で 100%。**スピーカーのお手本をマイクが拾い、それが認識されていた**
+  （余計な語がお手本の前半 = 2 重取り）。speechSynthesis は OS 側の再生なので Chrome の AEC では消えない。
+  対策: 再生終了まで採点しない、確定待ちを `silenceSec` に合わせる、Overlap/Shadow に「イヤホン推奨」、
+  聞こえた語数 ≥ 1.6× かつ余計な語 ≥ 半分 なら「再生音を拾った」として採点しない。
+  根本対策の候補: TTS を Workers AI（Chrome が再生する音）に替えれば `echoCancellation` が効く（仕様 11 の TTS 差し替え）

@@ -64,14 +64,24 @@ export function Practice({
     setHeard('');
     setSaved(null);
     setError(null);
+    setLeak(false);
     heardRef.current = '';
     k.stop();
     recognizer.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id]);
 
+  const playingRef = useRef(false);
+  const [leak, setLeak] = useState(false);
+
   const finishAttempt = useCallback(
     async (text: string) => {
+      // Overlap / Shadow: the reference is still playing — the learner can't be done yet.
+      if (playingRef.current) {
+        if (stopTimer.current) window.clearTimeout(stopTimer.current);
+        stopTimer.current = window.setTimeout(() => void finishAttempt(heardRef.current), 700);
+        return;
+      }
       recognizer.stop();
       setListening(false);
       if (!text.trim()) {
@@ -81,6 +91,13 @@ export function Practice({
       setScoring(true);
       const sec = Math.max(0.5, (Date.now() - speakStart.current) / 1000);
       const a = align(item.text, text);
+      // Speaker leak: the mic heard the reference too (roughly the sentence twice over).
+      const heardWords = wordCount(text);
+      if (heardWords >= words.length * 1.6 && a.extras.length >= Math.ceil(words.length * 0.5)) {
+        setLeak(true);
+        setScoring(false);
+        return;
+      }
       const bonus = timingBonus(sec, refSec.current || (words.length / NATIVE_WPM) * 60);
       const score = Math.min(100, a.score + bonus);
       const wpm = Math.round((wordCount(text) / sec) * 60);
@@ -104,7 +121,7 @@ export function Practice({
         setHeard(heardRef.current);
         // Browser engine: a final result after a pause means they're done.
         if (stopTimer.current) window.clearTimeout(stopTimer.current);
-        stopTimer.current = window.setTimeout(() => void finishAttempt(heardRef.current), 900);
+        stopTimer.current = window.setTimeout(() => void finishAttempt(heardRef.current), Math.max(900, settings.silenceSec * 1000));
       } else if (interim) {
         setHeard((heardRef.current + ' ' + interim).trim());
         if (stopTimer.current) window.clearTimeout(stopTimer.current);
@@ -119,7 +136,7 @@ export function Practice({
       recognizer.stop();
       if (stopTimer.current) window.clearTimeout(stopTimer.current);
     };
-  }, [recognizer, finishAttempt, t]);
+  }, [recognizer, finishAttempt, t, settings.silenceSec]);
 
   const play = async () => {
     setResult(null);
@@ -131,13 +148,16 @@ export function Practice({
   const speak = async () => {
     setError(null);
     setResult(null);
+    setLeak(false);
     heardRef.current = '';
     setHeard('');
     speakStart.current = Date.now();
     recognizer.setKeepAlive(false);
     recognizer.start();
     if (mode === 'overlap' || mode === 'shadow') {
+      playingRef.current = true;
       const sec = await k.speak(item.text, speed, settings.voice);
+      playingRef.current = false;
       if (sec) refSec.current = sec;
     }
     // Hard stop so a silent attempt doesn't hang.
@@ -174,7 +194,10 @@ export function Practice({
           </button>
         ))}
       </div>
-      <p className="-mt-3 text-center text-xs text-ink-3">{t(`shadow.mode.${mode}.sub`)}</p>
+      <p className="-mt-3 text-center text-xs text-ink-3">
+        {t(`shadow.mode.${mode}.sub`)}
+        {(mode === 'overlap' || mode === 'shadow') && <span className="ml-2 text-warn">{t('shadow.headphones')}</span>}
+      </p>
 
       {/* Sentence (karaoke) */}
       <div
@@ -242,7 +265,8 @@ export function Practice({
           ))}
       </div>
 
-      {heard && !result && <p className="text-center text-sm text-ink-2">{heard}</p>}
+      {heard && !result && !leak && <p className="text-center text-sm text-ink-2">{heard}</p>}
+      {leak && <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-center text-sm text-warn">{t('shadow.leak')}</p>}
       {error && <p className="text-center text-sm text-danger">{error}</p>}
 
       {/* Result */}
