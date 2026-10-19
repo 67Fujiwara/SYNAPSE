@@ -214,7 +214,11 @@ export function TalkPage() {
       : state.phase === 'listening'
         ? state.transcribing
           ? t('talk.transcribing')
-          : t('talk.listening')
+          : state.userSpeaking
+            ? t('talk.recording')
+            : engine === 'server'
+              ? t('talk.waiting')
+              : t('talk.listening')
         : state.phase === 'thinking'
           ? t('talk.thinking')
           : state.phase === 'speaking'
@@ -282,7 +286,12 @@ export function TalkPage() {
         <Waveform active={state.phase === 'listening' && state.listening} />
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-ink-2">
-            <span className={cx('relative inline-block h-2.5 w-2.5 rounded-full', state.phase === 'listening' ? 'bg-accent pulse-ring' : state.phase === 'speaking' ? 'bg-lime' : 'bg-ink-3')} />
+            <span
+              className={cx(
+                'relative inline-block h-2.5 w-2.5 rounded-full',
+                state.userSpeaking ? 'bg-danger pulse-ring' : state.phase === 'listening' ? 'bg-accent pulse-ring' : state.phase === 'speaking' ? 'bg-lime' : 'bg-ink-3',
+              )}
+            />
             {phaseLabel}
             {canInterrupt && <span className="text-ink-3">· {t('talk.tapToInterrupt')}</span>}
           </div>
@@ -290,7 +299,7 @@ export function TalkPage() {
             <span className="rounded border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3" title={t('settings.sttEngine')}>
               {engine === 'server' ? 'Whisper' : 'Browser'}
             </span>
-            {state.lastClip && (
+            {settings.debugClips && state.lastClip && (
               <audio
                 controls
                 src={state.lastClip.url}

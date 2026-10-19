@@ -177,6 +177,9 @@ export function SettingsPage() {
           </select>
         </Row>
         {sttNote && <div className="pt-2 text-xs text-ink-2">{sttNote}</div>}
+        <Row label={t('settings.debugClips')} help={t('settings.debugClips.help')}>
+          <Switch checked={settings.debugClips} onChange={(v) => update({ debugClips: v })} label={t('settings.debugClips')} />
+        </Row>
       </Card>
 
       <Card className="divide-y divide-line/70">

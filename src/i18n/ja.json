@@ -202,5 +202,9 @@
   "summary.win": "良かった表現",
   "talk.unsupportedServer": "このブラウザは録音（MediaRecorder）に対応していません。Chrome / Edge / Safari を使ってください。",
   "talk.engineServer": "認識: サーバーの Whisper。話している最中ではなく、黙ってから 1〜2 秒後に文字が出ます。",
-  "talk.lastClip": "マイクが拾った音（サーバーに送った最後のクリップ）を再生"
+  "talk.lastClip": "マイクが拾った音（サーバーに送った最後のクリップ）を再生",
+  "talk.waiting": "聞いています — 話し始めると録音します",
+  "talk.recording": "録音中…（黙ると終了して送信）",
+  "settings.debugClips": "送った音声の再生ボタンを出す",
+  "settings.debugClips.help": "会話画面に、文字起こしに送った音声を聞き返す小さな再生ボタンを出します（認識がおかしいときの確認用）。"
 }

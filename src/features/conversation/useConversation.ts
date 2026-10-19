@@ -56,6 +56,8 @@ export interface ConversationState {
   listening: boolean;
   /** Server engine: clip uploaded, waiting for the transcript. */
   transcribing: boolean;
+  /** The learner's voice is being detected right now (recording in progress). */
+  userSpeaking: boolean;
   startedAt: string | null;
   speakingSec: number;
   words: number;
@@ -73,6 +75,7 @@ const INITIAL: ConversationState = {
   error: null,
   listening: false,
   transcribing: false,
+  userSpeaking: false,
   startedAt: null,
   speakingSec: 0,
   words: 0,
@@ -267,6 +270,7 @@ export function useConversation(cfg: ConversationConfig) {
     recognizer.onResult(({ final, interim }) => {
       if (phase() !== 'listening') return; // ignore echoes of our own TTS
       if (final) {
+        setState((s) => ({ ...s, transcribing: false }));
         if (!draftRef.current) {
           draftStart.current = new Date().toISOString();
           if (lastAiEnd.current) {
@@ -285,6 +289,7 @@ export function useConversation(cfg: ConversationConfig) {
       }
     });
     recognizer.onSpeechStart(() => {
+      setState((s) => ({ ...s, userSpeaking: true }));
       speechStartAt.current = Date.now();
       if (!draftRef.current && lastAiEnd.current) {
         latencies.current.push((Date.now() - lastAiEnd.current) / 1000);
@@ -292,6 +297,8 @@ export function useConversation(cfg: ConversationConfig) {
       }
     });
     recognizer.onSpeechEnd(() => {
+      // Server engine: the clip is now being uploaded and transcribed.
+      setState((s) => ({ ...s, userSpeaking: false, transcribing: cfgRef.current.engine === 'server' }));
       if (speechStartAt.current) {
         speakingMs.current += Date.now() - speechStartAt.current;
         speechStartAt.current = null;
@@ -301,7 +308,7 @@ export function useConversation(cfg: ConversationConfig) {
     });
     recognizer.onError((code) => {
       const msg = code === 'not-allowed' || code === 'service-not-allowed' ? 'mic-denied' : code === 'network' ? 'Speech recognition network error' : code;
-      setState((s) => ({ ...s, error: msg, transcribing: false }));
+      setState((s) => ({ ...s, error: msg, transcribing: false, userSpeaking: false }));
       // A failed clip in push mode: go back to waiting for a tap.
       if (cfgRef.current.micMode === 'push' && phase() === 'listening') {
         recognizer.stop();

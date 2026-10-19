@@ -73,6 +73,8 @@ export interface Settings {
   saveRecordings: boolean;
   micMode: MicMode;
   sttEngine: SttEngine;
+  /** Show a player for the last clip sent to the server (debugging recognition). */
+  debugClips: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -88,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   saveRecordings: false,
   micMode: 'auto',
   sttEngine: 'server',
+  debugClips: false,
 };
 
 // ---- /api/chat --------------------------------------------------------------
