@@ -287,6 +287,18 @@ export function TalkPage() {
             {canInterrupt && <span className="text-ink-3">· {t('talk.tapToInterrupt')}</span>}
           </div>
           <div className="flex items-center gap-2">
+            <span className="rounded border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-3" title={t('settings.sttEngine')}>
+              {engine === 'server' ? 'Whisper' : 'Browser'}
+            </span>
+            {state.lastClip && (
+              <audio
+                controls
+                src={state.lastClip.url}
+                className="h-7 w-32"
+                title={t('talk.lastClip')}
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
             {state.phase === 'listening' ? <Mic size={16} className="text-accent" /> : <MicOff size={16} className="text-ink-3" />}
             <Button
               size="sm"

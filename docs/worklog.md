@@ -92,3 +92,7 @@
 - 検証: tsc / vitest 21 / build。Playwright + `--use-file-for-fake-audio-capture`（220Hz の音 2 秒 → 無音）で
   自動選択 → VAD → 40KB アップロード → 発言として表示 を確認。Whisper 本体は未確認（デプロイ後に実機）
 - 教訓: `pkill -f "vite --port"` は自分のシェル（コマンド文字列にその語が入る）も殺す。`pgrep -f "[v]ite"` を使う
+- 実機報告「話したことと全然違う」（"I press a car" / "Microsoft" / "I ate only Kitty"）。Chrome 内蔵のままか Whisper かは不明。
+  切り分け用に **送ったクリップを聞き返す `<audio>`** と **Whisper / Browser のバッジ** を会話画面に出した。
+  Whisper 側は `initial_prompt` に **AI の直前の発言** を入れて文脈で補正（`ServerRecognizer.context`）、`beam_size: 5`、
+  `condition_on_previous_text: false`。録音は timeslice をやめて 1 クリップ 1 コンテナ

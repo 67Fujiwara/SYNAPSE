@@ -80,9 +80,10 @@ export const api = {
   shadowAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode }) =>
     request<ShadowItem>('/api/shadow/attempts', { method: 'POST', body: JSON.stringify(a) }),
   /** Upload a recorded clip; resolves to the transcript. */
-  transcribe: async (blob: Blob): Promise<string> => {
+  transcribe: async (blob: Blob, context = ''): Promise<string> => {
     const form = new FormData();
     form.append('audio', blob, 'speech');
+    if (context) form.append('context', context);
     const res = await fetch('/api/transcribe', { method: 'POST', headers: headers(false), body: form });
     if (!res.ok) {
       let msg = res.statusText;

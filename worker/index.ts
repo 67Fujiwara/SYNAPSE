@@ -204,6 +204,9 @@ app.post('/api/transcribe', async (c) => {
   const audio = form.get('audio');
   if (!(audio instanceof File) || audio.size === 0) return c.json({ error: 'audio file required' }, 400);
   if (audio.size > 20 * 1024 * 1024) return c.json({ error: 'audio too large (max 20MB)' }, 413);
+  // The AI's last line. Whisper decodes much better when it knows the question being answered.
+  const context = String(form.get('context') ?? '').slice(0, 300);
+  const prompt = context ? `${WHISPER_PROMPT} The other person just said: "${context}"` : WHISPER_PROMPT;
 
   // 1) Workers AI Whisper (default): free tier, no key, runs on Cloudflare.
   if (c.env.AI) {
@@ -215,10 +218,11 @@ app.post('/api/transcribe', async (c) => {
         audio: btoa(bin),
         task: 'transcribe',
         language: 'en',
-        vad_filter: true,
-        initial_prompt: WHISPER_PROMPT,
+        initial_prompt: prompt,
+        beam_size: 5,
+        condition_on_previous_text: false,
       })) as { text?: string };
-      return c.json({ text: (out.text ?? '').trim(), engine: 'workers-ai' });
+      return c.json({ text: (out.text ?? '').trim(), engine: 'workers-ai', bytes: audio.size, type: audio.type });
     } catch (err) {
       if (!c.env.STT_API_KEY) return c.json({ error: `Workers AI transcription failed: ${err instanceof Error ? err.message : String(err)}` }, 502);
       // fall through to the external API
@@ -231,7 +235,7 @@ app.post('/api/transcribe', async (c) => {
   upstream.append('file', audio, `speech.${ext}`);
   upstream.append('model', c.env.STT_MODEL || 'whisper-1');
   upstream.append('language', 'en');
-  upstream.append('prompt', WHISPER_PROMPT);
+  upstream.append('prompt', prompt);
   upstream.append('response_format', 'json');
   const base = (c.env.STT_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
   const res = await fetch(`${base}/audio/transcriptions`, { method: 'POST', headers: { Authorization: `Bearer ${c.env.STT_API_KEY}` }, body: upstream });

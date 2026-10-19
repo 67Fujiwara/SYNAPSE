@@ -25,6 +25,11 @@ export class ServerRecognizer implements Recognizer {
   private keepAlive = false;
   private wantListening = false;
   private busy = 0; // uploads in flight
+  /** The AI's last line, sent with each clip so Whisper knows the context. */
+  context = '';
+  /** Last clip that was sent (for the "play what the mic heard" debug button). */
+  lastClip: Blob | null = null;
+  onClip: (blob: Blob, text: string) => void = () => {};
 
   private resultCb: (r: RecognitionResult) => void = () => {};
   private speechStartCb: () => void = () => {};
@@ -68,7 +73,7 @@ export class ServerRecognizer implements Recognizer {
         if (e.data.size > 0) this.chunks.push(e.data);
       };
       rec.onstop = () => void this.finish(rec.mimeType);
-      rec.start(250);
+      rec.start(); // one complete container per clip (safer than timeslices, esp. mp4 on iOS)
       this.startedAt = Date.now();
       this.stateCb(true);
       this.startVad();
@@ -150,8 +155,10 @@ export class ServerRecognizer implements Recognizer {
     };
     if (!hadSpeech || Date.now() - this.startedAt < 400 || blob.size < 1000) return next();
     this.busy += 1;
+    this.lastClip = blob;
     try {
-      const text = await api.transcribe(blob);
+      const text = await api.transcribe(blob, this.context);
+      this.onClip(blob, text);
       if (text) this.resultCb({ final: text, interim: '' });
     } catch (e) {
       this.errorCb(e instanceof Error ? e.message : 'transcribe-failed');

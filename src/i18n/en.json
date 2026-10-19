@@ -201,5 +201,6 @@
   "summary.topFixes": "Fix these",
   "summary.win": "Nice one",
   "talk.unsupportedServer": "This browser can't record audio (MediaRecorder). Use Chrome, Edge or Safari.",
-  "talk.engineServer": "Recognition: Whisper on the server. Your words appear after you pause (about 1–2 s), not while you speak."
+  "talk.engineServer": "Recognition: Whisper on the server. Your words appear after you pause (about 1–2 s), not while you speak.",
+  "talk.lastClip": "Play what the mic heard (last clip sent to the server)"
 }

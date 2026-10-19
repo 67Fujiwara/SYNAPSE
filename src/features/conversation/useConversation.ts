@@ -59,6 +59,8 @@ export interface ConversationState {
   startedAt: string | null;
   speakingSec: number;
   words: number;
+  /** Server engine: the last clip that was transcribed and what came back (debug playback). */
+  lastClip: { url: string; text: string } | null;
 }
 
 const STUCK_RE = /^(\s*(um+|uh+|er+|hmm+|ah+|eh+|えーと|あの|その)[,.\s]*)+$/i;
@@ -74,6 +76,7 @@ const INITIAL: ConversationState = {
   startedAt: null,
   speakingSec: 0,
   words: 0,
+  lastClip: null,
 };
 
 /**
@@ -227,6 +230,7 @@ export function useConversation(cfg: ConversationConfig) {
     if (full.trim()) {
       history.current.push({ role: 'assistant', content: full.trim() });
       subtitle(aiTurn);
+      if (recognizer instanceof ServerRecognizer) recognizer.context = full.trim();
     } else turnsRef.current = turnsRef.current.filter((t) => t !== aiTurn);
     pushTurns();
 
@@ -250,6 +254,7 @@ export function useConversation(cfg: ConversationConfig) {
     history.current.push({ role: 'assistant', content: text });
     pushTurns();
     subtitle(turn);
+    if (recognizer instanceof ServerRecognizer) recognizer.context = text;
     await synth.speak(text, { rate: cfgRef.current.rate, voice: cfgRef.current.voice });
     if (gen === ttsGeneration.current && phase() === 'speaking') {
       lastAiEnd.current = Date.now();
@@ -304,6 +309,13 @@ export function useConversation(cfg: ConversationConfig) {
       }
     });
     recognizer.onStateChange((listening) => setState((s) => ({ ...s, listening })));
+    if (recognizer instanceof ServerRecognizer) {
+      recognizer.onClip = (blob, text) =>
+        setState((s) => {
+          if (s.lastClip) URL.revokeObjectURL(s.lastClip.url);
+          return { ...s, lastClip: { url: URL.createObjectURL(blob), text } };
+        });
+    }
     return () => {
       recognizer.stop();
       synth.cancel();

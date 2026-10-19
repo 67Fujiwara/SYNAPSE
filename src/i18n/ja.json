@@ -201,5 +201,6 @@
   "summary.topFixes": "直すならここ",
   "summary.win": "良かった表現",
   "talk.unsupportedServer": "このブラウザは録音（MediaRecorder）に対応していません。Chrome / Edge / Safari を使ってください。",
-  "talk.engineServer": "認識: サーバーの Whisper。話している最中ではなく、黙ってから 1〜2 秒後に文字が出ます。"
+  "talk.engineServer": "認識: サーバーの Whisper。話している最中ではなく、黙ってから 1〜2 秒後に文字が出ます。",
+  "talk.lastClip": "マイクが拾った音（サーバーに送った最後のクリップ）を再生"
 }
