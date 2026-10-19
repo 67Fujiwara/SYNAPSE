@@ -112,3 +112,7 @@
 - ローカル検証用に `wrangler.local.toml`（`[ai]` 無し、gitignore）。`[ai]` があるとログイン無しの sandbox では dev が 500 になるため
 - 検証: tsc / vitest 31 / build（JS 747KB, gzip 229KB）。curl で progress / missions（冪等）/ export→import / recordings。Playwright でダッシュボード → ミッション会話 → 達成 → 進捗ページ
 - 未着手: TTS の外部 API 差し替え（任意項目）。Whisper の実機精度は未確認のまま
+- 実機報告: 黙っていても "Capture by GetTranscribed.com Capture by GetTranscribed.com" と認識される → **Whisper の無音ハルシネーション**。
+  対策 3 段: (1) VAD を厳しく（閾値 0.02 / ノイズ床×4、5 フレーム連続で初めて「声」、声の合計 600ms 未満のクリップは送らない）
+  (2) Whisper の `segments[].no_speech_prob` > 0.6 または `avg_logprob` < -1.0 は捨てる、`vad_filter: true` を戻す
+  (3) `shared/hallucination.ts` のブロックリスト（字幕の決まり文句・URL・同じ句の繰り返し・単語 1 つの "you" など）。テスト付き

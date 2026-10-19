@@ -12,6 +12,7 @@ import { completeMission, getProgress } from './db/progress';
 import { exportAll, importAll } from './db/transfer';
 import { findRecording, listRecordings, purgeRecordings, putRecording, recordingKey } from './db/recordings';
 import type { ExportBundle } from '../shared/types';
+import { looksHallucinated, lowConfidence } from '../shared/hallucination';
 import { deleteAll, getSession, listSessions, saveSession } from './db/sessions';
 import { getStats } from './db/stats';
 import { getSettings, putSettings } from './db/settings';
@@ -222,11 +223,17 @@ app.post('/api/transcribe', async (c) => {
         audio: btoa(bin),
         task: 'transcribe',
         language: 'en',
+        vad_filter: true,
         initial_prompt: prompt,
         beam_size: 5,
         condition_on_previous_text: false,
-      })) as { text?: string };
-      return c.json({ text: (out.text ?? '').trim(), engine: 'workers-ai', bytes: audio.size, type: audio.type });
+      })) as { text?: string; segments?: { no_speech_prob?: number; avg_logprob?: number }[] };
+      const text = (out.text ?? '').trim();
+      // Whisper invents subtitle boilerplate on clips without speech: drop those.
+      if (!text || looksHallucinated(text) || lowConfidence(out.segments)) {
+        return c.json({ text: '', engine: 'workers-ai', dropped: text || '(empty)', bytes: audio.size });
+      }
+      return c.json({ text, engine: 'workers-ai', bytes: audio.size, type: audio.type });
     } catch (err) {
       if (!c.env.STT_API_KEY) return c.json({ error: `Workers AI transcription failed: ${err instanceof Error ? err.message : String(err)}` }, 502);
       // fall through to the external API
@@ -245,7 +252,9 @@ app.post('/api/transcribe', async (c) => {
   const res = await fetch(`${base}/audio/transcriptions`, { method: 'POST', headers: { Authorization: `Bearer ${c.env.STT_API_KEY}` }, body: upstream });
   if (!res.ok) return c.json({ error: `Speech-to-text failed (${res.status}): ${(await res.text()).slice(0, 300)}` }, 502);
   const data = (await res.json()) as { text?: string };
-  return c.json({ text: (data.text ?? '').trim(), engine: 'external' });
+  const text = (data.text ?? '').trim();
+  if (!text || looksHallucinated(text)) return c.json({ text: '', engine: 'external', dropped: text || '(empty)' });
+  return c.json({ text, engine: 'external' });
 });
 
 // --- Review (Phase 2): post-session corrections with the accurate model ----------

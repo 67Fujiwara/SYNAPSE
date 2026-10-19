@@ -21,6 +21,8 @@ export class ServerRecognizer implements Recognizer {
   private startedAt = 0;
   private speechAt = 0; // when speech was first detected in this clip
   private lastLoudAt = 0;
+  private loudMs = 0; // total time above threshold in this clip
+  private loudRun = 0; // consecutive loud frames (to ignore clicks and bumps)
   private noiseFloor = 0.01;
   private keepAlive = false;
   private wantListening = false;
@@ -69,6 +71,8 @@ export class ServerRecognizer implements Recognizer {
       this.rec = rec;
       this.chunks = [];
       this.speechAt = 0;
+      this.loudMs = 0;
+      this.loudRun = 0;
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) this.chunks.push(e.data);
       };
@@ -121,15 +125,21 @@ export class ServerRecognizer implements Recognizer {
       // Adaptive floor: follow quiet levels slowly, never above a sane cap.
       if (rms < this.noiseFloor) this.noiseFloor = this.noiseFloor * 0.9 + rms * 0.1;
       else this.noiseFloor = Math.min(0.03, this.noiseFloor * 0.995 + rms * 0.005);
-      const threshold = Math.max(0.012, this.noiseFloor * 3);
+      const threshold = Math.max(0.02, this.noiseFloor * 4);
       const now = Date.now();
       if (rms > threshold) {
         this.lastLoudAt = now;
-        if (!this.speechAt) {
+        this.loudRun += 1;
+        this.loudMs += 50;
+        // Speech starts only after ~250 ms of sustained sound (5 frames), not on a click or a bump.
+        if (!this.speechAt && this.loudRun >= 5) {
           this.speechAt = now;
           this.speechStartCb();
         }
-      } else if (this.speechAt && now - this.lastLoudAt > this.silenceMs) {
+      } else {
+        this.loudRun = 0;
+      }
+      if (this.speechAt && now - this.lastLoudAt > this.silenceMs) {
         this.endClip(); // speech, then silence -> done
         return;
       }
@@ -148,7 +158,8 @@ export class ServerRecognizer implements Recognizer {
   private async finish(mime: string) {
     const blob = new Blob(this.chunks, { type: mime || 'audio/webm' });
     this.chunks = [];
-    const hadSpeech = this.speechAt > 0 || !this.analyser; // without VAD, trust the caller
+    // Without VAD we trust the caller; with it we need real voiced time (>= 600 ms), not a cough.
+    const hadSpeech = !this.analyser || (this.speechAt > 0 && this.loudMs >= 600);
     const next = () => {
       if (this.wantListening && this.keepAlive) this.start();
       else this.releaseMic();
