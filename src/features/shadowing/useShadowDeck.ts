@@ -38,7 +38,7 @@ export function useShadowDeck() {
     await api.deleteShadowItem(id);
   }, []);
 
-  const attempt = useCallback(async (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode }) => {
+  const attempt = useCallback(async (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode; durationSec: number }) => {
     const updated = await api.shadowAttempt(a);
     setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
     return updated;

@@ -32,7 +32,7 @@ const MODE: Record<Mode, string> = {
  */
 export function buildChatSystem(mode: Mode, immersion: Immersion, scenario?: string): string {
   const parts = [common.trim(), IMMERSION[immersion].trim(), MODE[mode].trim()];
-  if (mode === 'mywork' && scenario) parts.push(`# Scenario details\n${scenario.trim()}`);
+  if (scenario?.trim()) parts.push(`# Scenario details\n${scenario.trim()}`);
   return parts.join('\n\n');
 }
 

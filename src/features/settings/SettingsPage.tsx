@@ -68,14 +68,25 @@ export function SettingsPage() {
     }
   };
 
+  const [dataNote, setDataNote] = useState<string | null>(null);
   const exportJson = async () => {
-    const [stats, sessions] = await Promise.all([api.stats(400), fetch('/api/sessions?limit=100', { headers: { Authorization: `Bearer ${getToken()}` } }).then((r) => r.json())]);
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), settings, stats, sessions }, null, 2)], { type: 'application/json' });
+    const bundle = await api.exportAll(); // also stored under exports/ in R2 when a bucket is bound
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `synapse-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `synapse-export-${bundle.exportedAt.slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+    setDataNote(t('settings.exported', { n: bundle.sessions.length }));
+  };
+  const importJson = async (file: File) => {
+    try {
+      const bundle = JSON.parse(await file.text());
+      const r = await api.importAll(bundle);
+      setDataNote(t('settings.imported', { s: r.sessions, i: r.items }));
+    } catch (e) {
+      setDataNote(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const wipe = async () => {
@@ -206,10 +217,26 @@ export function SettingsPage() {
           <Button variant="outline" size="sm" onClick={exportJson}>
             {t('settings.export')}
           </Button>
+          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2">
+            {t('settings.import')}
+            <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void importJson(e.target.files[0])} />
+          </label>
           <Button variant="danger" size="sm" onClick={wipe}>
             {t('settings.wipe')}
           </Button>
         </div>
+        {dataNote && <div className="mt-2 text-xs text-ink-2">{dataNote}</div>}
+      </Card>
+
+      <Card className="divide-y divide-line/70">
+        <h2 className="pb-1 font-display text-base font-semibold">{t('settings.recordings')}</h2>
+        <Row label={t('settings.saveRecordings')} help={t('settings.saveRecordings.help')}>
+          <Switch checked={settings.saveRecordings} onChange={(v) => update({ saveRecordings: v })} label={t('settings.saveRecordings')} />
+        </Row>
+        <Row label={t('settings.recordingDays')}>
+          <input type="number" min={1} max={365} value={settings.recordingDays} onChange={(e) => update({ recordingDays: Math.max(1, Number(e.target.value) || 1) })} className="w-24" />
+          <span className="text-sm text-ink-2">{t('settings.days')}</span>
+        </Row>
       </Card>
     </div>
   );

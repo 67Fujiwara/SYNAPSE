@@ -29,6 +29,10 @@ run_worker_first = ["/api/*"]
 [ai]
 binding = "AI"
 
+# Nightly cleanup of old recordings (03:00 UTC).
+[triggers]
+crons = ["0 3 * * *"]
+
 [vars]
 # Non-secret defaults. Override per environment if needed.
 DEFAULT_CHAT_MODEL = "claude-sonnet-5-5"

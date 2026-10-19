@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { cx } from '@/lib/util';
 import { ArrowRight, Flame, Mic, Repeat, ClipboardCheck, CloudOff, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -7,7 +8,13 @@ import { useSettings } from '@/features/settings/SettingsProvider';
 import { useStats } from './useStats';
 import { GoalRing } from './GoalRing';
 import { MinutesChart } from './MinutesChart';
+import { WeekCard } from './WeekCard';
+import { xpLevel } from './charts';
+import { api } from '@/lib/api/client';
 import { fmtMinutes, localDate } from '@/lib/util';
+import { useEffect, useState } from 'react';
+import type { ProgressResponse } from '@shared/types';
+import { Check, Star, Target } from 'lucide-react';
 
 const MISSIONS = [
   'Explain what an interlock is in 3 sentences.',
@@ -33,8 +40,16 @@ export function Dashboard() {
   const { t } = useT();
   const { settings } = useSettings();
   const { stats, error, offline, pending } = useStats(7);
+  const [prog, setProg] = useState<ProgressResponse | null>(null);
+  useEffect(() => {
+    if (error === 'token') return;
+    api.progress().then(setProg).catch(() => {});
+  }, [error, stats]);
 
   const todayMin = (stats?.today.speakingSec ?? 0) / 60;
+  const mission = missionOfTheDay();
+  const missionDone = Boolean(stats?.today.missionDone);
+  const xp = prog ? xpLevel(prog.totals.xp) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -66,23 +81,42 @@ export function Dashboard() {
             <div className="text-sm text-ink-2">{t('home.goal', { min: settings.dailyGoalMin })}</div>
             <div className="mt-3 flex items-center gap-1.5 text-sm">
               <Flame size={16} className={stats && stats.streak > 0 ? 'text-warn' : 'text-ink-3'} />
-              <span className="font-semibold tabular-nums">{stats?.streak ?? 0}</span>
+              <span className="font-semibold tabular-nums">{prog?.streak ?? stats?.streak ?? 0}</span>
               <span className="text-ink-2">{t('home.streak')}</span>
+              {prog?.freezeUsed && <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">{t('home.freeze')}</span>}
             </div>
+            {xp && (
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-2">
+                <Star size={13} className="text-warn" /> Lv.{xp.level} · {prog!.totals.xp} XP
+              </div>
+            )}
           </div>
         </Card>
 
         <Card className="flex flex-col justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-wide text-accent">{t('home.mission')}</div>
-            <p className="mt-2 font-display text-xl font-medium leading-snug">{missionOfTheDay()}</p>
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wide text-accent">{t('home.mission')}</div>
+              {missionDone && (
+                <span className="flex items-center gap-1 rounded-md bg-lime/15 px-2 py-0.5 text-xs text-lime">
+                  <Check size={12} /> {t('home.mission.done')}
+                </span>
+              )}
+            </div>
+            <p className={cx('mt-2 font-display text-xl font-medium leading-snug', missionDone && 'text-ink-2 line-through decoration-ink-3/50')}>{mission}</p>
           </div>
-          <div>
-            <Link to="/talk?mode=free">
-              <Button size="sm" variant="outline">
-                {t('home.mission.cta')} <ArrowRight size={14} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link to={`/talk?mode=free&mission=${encodeURIComponent(mission)}`}>
+              <Button size="sm" variant={missionDone ? 'ghost' : 'outline'}>
+                {missionDone ? t('home.mission.again') : t('home.mission.cta')} <ArrowRight size={14} />
               </Button>
             </Link>
+            {prog && (
+              <span className="flex items-center gap-1.5 text-xs text-ink-2" title={t('home.challenge.help')}>
+                <Target size={13} className={prog.challenge.done >= prog.challenge.target ? 'text-lime' : 'text-ink-3'} />
+                {t('home.challenge', { done: Math.min(prog.challenge.done, prog.challenge.target), target: prog.challenge.target })}
+              </span>
+            )}
           </div>
         </Card>
       </div>
@@ -116,6 +150,8 @@ export function Dashboard() {
           </span>
         </Link>
       </div>
+
+      {prog && <WeekCard current={prog.week.current} previous={prog.week.previous} />}
 
       <Card>
         <div className="mb-2 flex items-baseline justify-between">

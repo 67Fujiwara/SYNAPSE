@@ -77,8 +77,8 @@ export async function recordAttempt(db: D1Database, a: ShadowAttempt): Promise<S
   const mastered = a.mode === 'recall' ? (a.score >= MASTER_SCORE ? row.mastered_count + 1 : 0) : row.mastered_count;
   await db.batch([
     db
-      .prepare('INSERT INTO shadow_attempts (id, item_id, at, score, wpm, speed, mode) VALUES (?,?,?,?,?,?,?)')
-      .bind(a.id, a.itemId, a.at, a.score, a.wpm, a.speed, a.mode),
+      .prepare('INSERT INTO shadow_attempts (id, item_id, at, score, wpm, speed, mode, duration_sec) VALUES (?,?,?,?,?,?,?,?)')
+      .bind(a.id, a.itemId, a.at, a.score, a.wpm, a.speed, a.mode, a.durationSec),
     db
       .prepare('UPDATE shadow_items SET due_at = ?, interval_days = ?, best_score = MAX(best_score, ?), best_wpm = MAX(best_wpm, ?), mastered_count = ? WHERE id = ?')
       .bind(addDays(a.at, interval), interval, a.score, a.wpm, mastered, a.itemId),

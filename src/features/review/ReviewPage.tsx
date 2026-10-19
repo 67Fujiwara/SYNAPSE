@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Sparkles } from 'lucide-react';
-import type { Review, ReviewSummary, Session } from '@shared/types';
+import type { RecordingMeta, Review, ReviewSummary, Session, Turn } from '@shared/types';
+import { Play } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useT } from '@/i18n';
@@ -78,7 +79,14 @@ export function ReviewPage() {
         </div>
       )}
 
-      {current ? <ReviewView review={current.review} /> : reviews && reviews.length === 0 && unreviewed.length === 0 && <p className="text-sm text-ink-2">{t('review.empty')}</p>}
+      {current ? (
+        <>
+          <ReviewView review={current.review} />
+          <SessionTranscript sessionId={current.review.sessionId} />
+        </>
+      ) : (
+        reviews && reviews.length === 0 && unreviewed.length === 0 && <p className="text-sm text-ink-2">{t('review.empty')}</p>
+      )}
 
       {unreviewed.length > 0 && (
         <Card>
@@ -187,5 +195,68 @@ export function ReviewView({ review, compact }: { review: Review; compact?: bool
         </Card>
       )}
     </div>
+  );
+}
+
+/** The session's lines; the learner's lines get a play button when a recording exists in R2. */
+function SessionTranscript({ sessionId }: { sessionId: string }) {
+  const { t } = useT();
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [recs, setRecs] = useState<Record<string, RecordingMeta>>({});
+  const [open, setOpen] = useState(false);
+  const [playing, setPlaying] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    api.session(sessionId).then((p) => setTurns(p.turns)).catch(() => {});
+    api
+      .recordings(sessionId)
+      .then((list) => setRecs(Object.fromEntries(list.map((r) => [r.turnId, r]))))
+      .catch(() => {});
+  }, [open, sessionId]);
+
+  const play = async (turnId: string) => {
+    setPlaying(turnId);
+    try {
+      const url = await api.recordingUrl(turnId);
+      const a = new Audio(url);
+      a.onended = () => {
+        URL.revokeObjectURL(url);
+        setPlaying(null);
+      };
+      await a.play();
+    } catch {
+      setPlaying(null);
+    }
+  };
+
+  return (
+    <Card>
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
+        <h3 className="text-xs uppercase tracking-wide text-ink-3">{t('review.transcript')}</h3>
+        <span className="text-xs text-ink-3">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <ul className="mt-3 flex flex-col gap-2 text-sm">
+          {turns.map((x) => (
+            <li key={x.id} className={cx('flex items-start gap-2', x.role === 'ai' ? 'text-ink' : 'text-ink-2')}>
+              <span className="mt-0.5 w-7 shrink-0 text-[10px] uppercase tracking-wider text-ink-3">{x.role === 'ai' ? 'AI' : 'You'}</span>
+              <span className="flex-1">{x.text}</span>
+              {x.role === 'user' && recs[x.id] && (
+                <button
+                  onClick={() => void play(x.id)}
+                  disabled={playing === x.id}
+                  className="shrink-0 rounded-md border border-line p-1 text-ink-2 hover:border-accent hover:text-accent disabled:opacity-50"
+                  aria-label={t('review.play')}
+                >
+                  <Play size={12} />
+                </button>
+              )}
+            </li>
+          ))}
+          {turns.length > 0 && Object.keys(recs).length === 0 && <li className="text-xs text-ink-3">{t('review.noRecordings')}</li>}
+        </ul>
+      )}
+    </Card>
   );
 }

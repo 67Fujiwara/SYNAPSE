@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeStreak, shiftDate } from './stats';
+import { computeStreak, shiftDate, streakDetail } from './stats';
 
 describe('shiftDate', () => {
   it('crosses month and year boundaries', () => {
@@ -18,9 +18,16 @@ describe('computeStreak', () => {
     const active = new Set(['2026-10-15', '2026-10-16']);
     expect(computeStreak(active, '2026-10-17')).toBe(2);
   });
-  it('breaks on a gap', () => {
-    const active = new Set(['2026-10-13', '2026-10-14', '2026-10-16']);
-    expect(computeStreak(active, '2026-10-17')).toBe(1);
-    expect(computeStreak(active, '2026-10-18')).toBe(0);
+  it('forgives one missed day per week (freeze) but not two', () => {
+    const active = new Set(['2026-10-13', '2026-10-14', '2026-10-16', '2026-10-17']);
+    const d = streakDetail(active, '2026-10-17');
+    expect(d.streak).toBe(4);
+    expect(d.freezeUsed).toBe(true);
+    const two = new Set(['2026-10-12', '2026-10-13', '2026-10-16', '2026-10-17']);
+    expect(computeStreak(two, '2026-10-17')).toBe(2);
+  });
+  it('is zero after two silent days', () => {
+    const active = new Set(['2026-10-13', '2026-10-14']);
+    expect(computeStreak(active, '2026-10-17')).toBe(0);
   });
 });

@@ -71,6 +71,8 @@ export interface Settings {
   chatModel: string;
   reviewModel: string;
   saveRecordings: boolean;
+  /** Days to keep recordings in R2 before the nightly cleanup deletes them. */
+  recordingDays: number;
   micMode: MicMode;
   sttEngine: SttEngine;
   /** Show a player for the last clip sent to the server (debugging recognition). */
@@ -88,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chatModel: 'claude-sonnet-5-5',
   reviewModel: 'claude-opus-5-5',
   saveRecordings: false,
+  recordingDays: 30,
   micMode: 'auto',
   sttEngine: 'server',
   debugClips: false,
@@ -173,6 +176,7 @@ export interface ShadowAttempt {
   wpm: number;
   speed: number;
   mode: ShadowMode;
+  durationSec: number;
 }
 
 export type ShadowMode = 'listen' | 'overlap' | 'shadow' | 'recall';
@@ -192,4 +196,55 @@ export interface WordInfo {
   definition: string;
   ja: string;
   example: string;
+}
+
+// ---- Phase 3: progress -------------------------------------------------------------
+
+export interface WeekAgg {
+  sessions: number;
+  speakingSec: number;
+  words: number;
+  wpm: number; // words-weighted
+  errorRate: number;
+  fillerRate: number;
+  avgLatencySec: number;
+  jpHintPer100: number;
+  shadowAttempts: number;
+  shadowAvgScore: number;
+}
+
+export interface ProgressResponse {
+  /** Last 365 days, zero-filled, ascending. */
+  days: DailyStat[];
+  streak: number;
+  /** True when today's streak only survives thanks to the weekly freeze. */
+  freezeUsed: boolean;
+  totals: { sessions: number; speakingSec: number; words: number; xp: number };
+  /** Speaking seconds by mode in the last 30 days (shadowing = practice time). */
+  modes: Record<Mode | 'shadow', number>;
+  /** Most recent sessions, newest first (radar / level). */
+  recent: Session[];
+  shadow: { attempts: number; avgScore: number; bestWpm: number; durationSec: number; mastered: ShadowItem[] };
+  week: { current: WeekAgg; previous: WeekAgg; weekStart: string };
+  challenge: { done: number; target: number; mode: Mode };
+}
+
+export interface RecordingMeta {
+  id: string;
+  turnId: string;
+  sessionId: string;
+  durationSec: number;
+  contentType: string;
+  createdAt: string;
+}
+
+export interface ExportBundle {
+  version: 1;
+  exportedAt: string;
+  settings: Settings;
+  sessions: SessionPayload[];
+  reviews: Review[];
+  shadowItems: ShadowItem[];
+  shadowAttempts: ShadowAttempt[];
+  dailyStats: (DailyStat & { bonusXp: number })[];
 }

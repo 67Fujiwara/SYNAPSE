@@ -96,3 +96,19 @@
   切り分け用に **送ったクリップを聞き返す `<audio>`** と **Whisper / Browser のバッジ** を会話画面に出した。
   Whisper 側は `initial_prompt` に **AI の直前の発言** を入れて文脈で補正（`ServerRecognizer.context`）、`beam_size: 5`、
   `condition_on_previous_text: false`。録音は timeslice をやめて 1 クリップ 1 コンテナ
+
+## 2026-10-19 — Phase 3
+
+- `/api/progress`（`worker/db/progress.ts`）: 365 日ゼロ埋め、週次集計（月曜始まり、語数で重み付けした率）、モード別秒数（30 日）、
+  シャドー集計、習得フレーズ。ストリークは `streakDetail`（7 日に 1 回の欠席を forgive、`freezeUsed` を返す）
+- ミッション: ダッシュボードの `?mission=` → Talk が `scenario` に課題文を入れる（Worker の `buildChatSystem` は mode に関係なく scenario を付けるよう変更）。
+  終了時 20 語以上で `/api/missions/done`（`daily_stats.mission_done`, `bonus_xp` +20、1 日 1 回）
+- Level: `estimateLevel`（A2→B1→B2→C1 を飛ばさない。未達条件を列挙）。XP レベルは 100·n²。レーダーは `skillScores`
+- グラフは dataviz の基準どおり: モード別は **1 色**（4 色のカテゴリ palette は CVD 検証で不合格だった）、ヒートマップは accent の 5 段階、レーダーは 1 系列
+- エクスポート / インポート（`worker/db/transfer.ts`）。R2 があれば `exports/<date>.json` にも置く
+- 録音: `ServerRecognizer.onClip` → `send()` で user turn を作った直後に `POST /api/recordings`（設定 `saveRecordings`）。
+  **`recordings.turn_id` の FK を外した（0004）**: turn は終了時にしか D1 に入らないので FK 違反になった（ローカルで発覚）。
+  レビュー画面の「会話の記録と録音」で再生（認証ヘッダが要るので blob URL 経由）。夜間 cron `0 3 * * *` で `recordingDays` より古い分を削除
+- ローカル検証用に `wrangler.local.toml`（`[ai]` 無し、gitignore）。`[ai]` があるとログイン無しの sandbox では dev が 500 になるため
+- 検証: tsc / vitest 31 / build（JS 747KB, gzip 229KB）。curl で progress / missions（冪等）/ export→import / recordings。Playwright でダッシュボード → ミッション会話 → 達成 → 進捗ページ
+- 未着手: TTS の外部 API 差し替え（任意項目）。Whisper の実機精度は未確認のまま

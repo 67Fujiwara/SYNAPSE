@@ -30,7 +30,7 @@ export function Practice({
   onDelete,
 }: {
   item: ShadowItem;
-  onAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode }) => Promise<ShadowItem>;
+  onAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode; durationSec: number }) => Promise<ShadowItem>;
   onNext: () => void;
   onDelete: () => void;
 }) {
@@ -87,7 +87,7 @@ export function Practice({
       const r = { align: a, score, wpm, bonus };
       setResult(r);
       try {
-        setSaved(await onAttempt({ itemId: item.id, score, wpm, speed, mode }));
+        setSaved(await onAttempt({ itemId: item.id, score, wpm, speed, mode, durationSec: Math.round(sec * 10) / 10 }));
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {

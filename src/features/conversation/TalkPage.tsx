@@ -42,6 +42,8 @@ export function TalkPage() {
   const { settings } = useSettings();
   const [params] = useSearchParams();
   const [mode, setMode] = useState<Mode>((params.get('mode') as Mode) || 'daily');
+  const mission = params.get('mission') ?? '';
+  const [missionResult, setMissionResult] = useState<'done' | 'short' | null>(null);
   const [desc, setDesc] = useState('');
   const [scenario, setScenario] = useState('');
   const [building, setBuilding] = useState(false);
@@ -68,8 +70,9 @@ export function TalkPage() {
     mode,
     micMode,
     engine,
+    saveRecordings: settings.saveRecordings,
     immersion: settings.immersion,
-    scenario: mode === 'mywork' ? scenario : undefined,
+    scenario: mode === 'mywork' ? scenario : mission ? `Today's mission for the learner: "${mission}". Open by asking them to do it. Let them talk; then give one sentence of encouragement and keep the conversation going.` : undefined,
     model: settings.chatModel,
     voice: settings.voice,
     rate: settings.rate,
@@ -104,7 +107,7 @@ export function TalkPage() {
   const begin = () => {
     setResult(null);
     setSaved(null);
-    const opening = mode === 'mywork' ? openingFromScenario(scenario) : OPENERS[mode];
+    const opening = mode === 'mywork' ? openingFromScenario(scenario) : mission ? `Hey! Today's mission: ${mission} Go ahead, I'm listening.` : OPENERS[mode];
     conv.unlockAudio(); // inside the tap: required on iOS before any later speech
     void conv.start(opening);
   };
@@ -123,6 +126,16 @@ export function TalkPage() {
     }
     const status = await persistSession(payload);
     setSaved(status);
+    if (mission) {
+      if (payload.session.words >= 20) {
+        try {
+          await api.missionDone();
+          setMissionResult('done');
+        } catch {
+          /* offline: not counted */
+        }
+      } else setMissionResult('short');
+    }
     // Phase 2: review with the accurate model once the session is on the server.
     if (status === 'synced') {
       setReviewState('loading');
@@ -138,7 +151,9 @@ export function TalkPage() {
 
   // ---- Summary ----------------------------------------------------------------
   if (result) {
-    return <SummaryCard payload={result} saved={saved} onAgain={() => setResult(null)} review={review} reviewState={reviewState} reviewErr={reviewErr} />;
+    return (
+      <SummaryCard payload={result} saved={saved} onAgain={() => setResult(null)} review={review} reviewState={reviewState} reviewErr={reviewErr} missionResult={missionResult} />
+    );
   }
 
   // ---- Mode picker --------------------------------------------------------------

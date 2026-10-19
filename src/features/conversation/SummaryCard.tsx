@@ -4,7 +4,7 @@ import { ReviewView } from '@/features/review/ReviewPage';
 import { Card, Stat } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
-import { fmtMinutes } from '@/lib/util';
+import { cx, fmtMinutes } from '@/lib/util';
 
 export function SummaryCard({
   payload,
@@ -13,6 +13,7 @@ export function SummaryCard({
   review,
   reviewState,
   reviewErr,
+  missionResult,
 }: {
   payload: SessionPayload;
   saved: 'synced' | 'queued' | null;
@@ -20,6 +21,7 @@ export function SummaryCard({
   review: Review | null;
   reviewState: 'idle' | 'loading' | 'error';
   reviewErr: string | null;
+  missionResult?: 'done' | 'short' | null;
 }) {
   const { t } = useT();
   const s = payload.session;
@@ -38,6 +40,11 @@ export function SummaryCard({
           <Stat label={t('summary.unique')} value={s.uniqueWords} />
           {s.jpHintCount > 0 && <Stat label={t('summary.jpHints')} value={s.jpHintCount} />}
         </div>
+        {missionResult && (
+          <div className={cx('rounded-lg px-3 py-2 text-sm', missionResult === 'done' ? 'bg-lime/15 text-lime' : 'bg-surface-2 text-ink-2')}>
+            {missionResult === 'done' ? t('summary.missionDone') : t('summary.missionShort')}
+          </div>
+        )}
         <div className="flex items-center justify-between text-sm">
           <span className="text-ink-2">{saved === 'queued' ? t('summary.queued') : saved === 'synced' ? t('summary.saved') : '…'}</span>
           <span className="rounded-md bg-lime/15 px-2 py-0.5 font-semibold text-lime">+{s.xp} {t('summary.xp')}</span>

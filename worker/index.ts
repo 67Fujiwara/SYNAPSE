@@ -8,6 +8,10 @@ import type { ChatEvent, ChatRequest, NewShadowItem, Review, SessionPayload, Set
 import { buildChatSystem, REVIEW_SYSTEM, SCENARIO_GENERATOR_SYSTEM, TRANSLATE_SYSTEM, WORD_SYSTEM } from './prompts';
 import { getReview, listReviews, saveReview } from './db/reviews';
 import { addItems, deleteItem, listItems, recordAttempt } from './db/shadow';
+import { completeMission, getProgress } from './db/progress';
+import { exportAll, importAll } from './db/transfer';
+import { findRecording, listRecordings, purgeRecordings, putRecording, recordingKey } from './db/recordings';
+import type { ExportBundle } from '../shared/types';
 import { deleteAll, getSession, listSessions, saveSession } from './db/sessions';
 import { getStats } from './db/stats';
 import { getSettings, putSettings } from './db/settings';
@@ -354,8 +358,69 @@ app.post('/api/shadow/attempts', async (c) => {
     wpm: Number(b.wpm) || 0,
     speed: Number(b.speed) || 1,
     mode: b.mode ?? 'shadow',
+    durationSec: Number((b as { durationSec?: number }).durationSec) || 0,
   });
   return item ? c.json(item) : c.json({ error: 'not found' }, 404);
+});
+
+// --- Progress / missions (Phase 3) -------------------------------------------------
+app.get('/api/progress', async (c) => c.json(await getProgress(c.env.DB, localDate(c))));
+
+const MISSION_BONUS_XP = 20;
+app.post('/api/missions/done', async (c) => {
+  const newly = await completeMission(c.env.DB, localDate(c), MISSION_BONUS_XP);
+  return c.json({ ok: true, newly, bonusXp: newly ? MISSION_BONUS_XP : 0 });
+});
+
+// --- Export / import (Phase 3) --------------------------------------------------------
+app.get('/api/export', async (c) => {
+  const bundle = await exportAll(c.env.DB);
+  // Keep a copy in R2 when the bucket is bound (best effort).
+  if (c.env.BUCKET) {
+    try {
+      await c.env.BUCKET.put(`exports/${bundle.exportedAt.slice(0, 10)}.json`, JSON.stringify(bundle), { httpMetadata: { contentType: 'application/json' } });
+    } catch {
+      /* no bucket / quota */
+    }
+  }
+  return c.json(bundle);
+});
+
+app.post('/api/import', async (c) => {
+  const bundle = (await c.req.json()) as ExportBundle;
+  if (bundle?.version !== 1) return c.json({ error: 'unsupported export version' }, 400);
+  return c.json(await importAll(c.env.DB, bundle));
+});
+
+// --- Recordings (Phase 3): the learner's own clips, stored in R2 ---------------------
+app.post('/api/recordings', async (c) => {
+  if (!c.env.BUCKET) return c.json({ error: 'R2 bucket not configured' }, 501);
+  const form = await c.req.formData();
+  const audio = form.get('audio');
+  const turnId = String(form.get('turnId') ?? '');
+  const sessionId = String(form.get('sessionId') ?? '');
+  const durationSec = Number(form.get('durationSec') ?? 0) || 0;
+  if (!(audio instanceof File) || !turnId || !sessionId) return c.json({ error: 'audio, turnId, sessionId required' }, 400);
+  if (audio.size > 20 * 1024 * 1024) return c.json({ error: 'too large' }, 413);
+  const contentType = audio.type || 'audio/webm';
+  const key = recordingKey(sessionId, turnId, contentType);
+  await putRecording(c.env.DB, c.env.BUCKET, { id: crypto.randomUUID(), turnId, sessionId, durationSec, contentType, createdAt: new Date().toISOString() }, key, await audio.arrayBuffer());
+  return c.json({ ok: true, turnId });
+});
+
+app.get('/api/recordings', async (c) => {
+  const sessionId = c.req.query('sessionId');
+  if (!sessionId) return c.json({ error: 'sessionId required' }, 400);
+  return c.json(await listRecordings(c.env.DB, sessionId));
+});
+
+app.get('/api/recordings/:turnId', async (c) => {
+  if (!c.env.BUCKET) return c.json({ error: 'R2 bucket not configured' }, 501);
+  const rec = await findRecording(c.env.DB, c.req.param('turnId'));
+  if (!rec) return c.json({ error: 'not found' }, 404);
+  const obj = await c.env.BUCKET.get(rec.key);
+  if (!obj) return c.json({ error: 'gone' }, 404);
+  return new Response(obj.body, { headers: { 'Content-Type': rec.contentType, 'Cache-Control': 'private, max-age=3600' } });
 });
 
 // --- Sessions ----------------------------------------------------------------
@@ -400,4 +465,16 @@ app.onError((err, c) => {
   return c.json({ error: err.message }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /** Nightly: delete recordings older than the configured retention. */
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    if (!env.BUCKET) return;
+    ctx.waitUntil(
+      (async () => {
+        const settings = await getSettings(env.DB);
+        await purgeRecordings(env.DB, env.BUCKET!, Math.max(1, settings.recordingDays || 30));
+      })(),
+    );
+  },
+};

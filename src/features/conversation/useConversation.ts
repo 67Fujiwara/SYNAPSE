@@ -44,6 +44,8 @@ export interface ConversationConfig {
   /** Resolved mic mode ('auto' already turned into one of these by the caller). */
   micMode: 'continuous' | 'push';
   engine: SttEngine;
+  /** Upload each of the learner's clips to R2 (server engine only). */
+  saveRecordings: boolean;
 }
 
 export interface ConversationState {
@@ -118,6 +120,7 @@ export function useConversation(cfg: ConversationConfig) {
   const sessionStart = useRef<string | null>(null);
   const ttsGeneration = useRef(0);
   const jpHints = useRef(0);
+  const pendingClip = useRef<{ blob: Blob; sec: number } | null>(null);
 
   const setPhase = (p: Phase) => {
     phaseRef.current = p;
@@ -178,9 +181,16 @@ export function useConversation(cfg: ConversationConfig) {
     const endedAt = new Date().toISOString();
     setState((s) => ({ ...s, draft: '', interim: '', transcribing: false }));
 
-    turnsRef.current.push({ id: uuid(), role: 'user', text, startedAt, endedAt });
+    const userTurn: DisplayTurn = { id: uuid(), role: 'user', text, startedAt, endedAt };
+    turnsRef.current.push(userTurn);
     history.current.push({ role: 'user', content: text });
     pushTurns();
+    const clip = pendingClip.current;
+    pendingClip.current = null;
+    if (clip && cfgRef.current.saveRecordings) {
+      const sec = Math.max(0, (Date.parse(endedAt) - Date.parse(startedAt)) / 1000);
+      void api.uploadRecording(clip.blob, userTurn.id, sessionId.current, Math.round(sec * 10) / 10).catch(() => {});
+    }
     setState((s) => ({ ...s, words: s.words + text.split(/\s+/).filter(Boolean).length }));
 
     // Learner is stuck on fillers: nudge locally, no round-trip.
@@ -317,11 +327,13 @@ export function useConversation(cfg: ConversationConfig) {
     });
     recognizer.onStateChange((listening) => setState((s) => ({ ...s, listening })));
     if (recognizer instanceof ServerRecognizer) {
-      recognizer.onClip = (blob, text) =>
+      recognizer.onClip = (blob, text) => {
+        pendingClip.current = { blob, sec: speechStartAt.current ? 0 : 0 };
         setState((s) => {
           if (s.lastClip) URL.revokeObjectURL(s.lastClip.url);
           return { ...s, lastClip: { url: URL.createObjectURL(blob), text } };
         });
+      };
     }
     return () => {
       recognizer.stop();

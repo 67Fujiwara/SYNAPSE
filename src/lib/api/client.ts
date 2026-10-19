@@ -1,4 +1,4 @@
-import type { ChatEvent, ChatRequest, NewShadowItem, Review, ReviewSummary, SessionPayload, Settings, ShadowItem, ShadowMode, StatsResponse, Turn, WordInfo } from '@shared/types';
+import type { ChatEvent, ChatRequest, ExportBundle, NewShadowItem, ProgressResponse, RecordingMeta, Review, ReviewSummary, SessionPayload, Settings, ShadowItem, ShadowMode, StatsResponse, Turn, WordInfo } from '@shared/types';
 import { localDate } from '../util';
 
 const TOKEN_KEY = 'synapse.token';
@@ -77,8 +77,30 @@ export const api = {
   shadowItems: () => request<ShadowItem[]>('/api/shadow/items'),
   addShadowItems: (items: NewShadowItem[]) => request<ShadowItem[]>('/api/shadow/items', { method: 'POST', body: JSON.stringify({ items }) }),
   deleteShadowItem: (id: string) => request<{ ok: boolean }>(`/api/shadow/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  shadowAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode }) =>
+  shadowAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode; durationSec: number }) =>
     request<ShadowItem>('/api/shadow/attempts', { method: 'POST', body: JSON.stringify(a) }),
+  // Phase 3
+  progress: () => request<ProgressResponse>('/api/progress'),
+  missionDone: () => request<{ ok: boolean; newly: boolean; bonusXp: number }>('/api/missions/done', { method: 'POST', body: '{}' }),
+  exportAll: () => request<ExportBundle>('/api/export'),
+  importAll: (bundle: ExportBundle) =>
+    request<{ sessions: number; reviews: number; items: number; attempts: number }>('/api/import', { method: 'POST', body: JSON.stringify(bundle) }),
+  recordings: (sessionId: string) => request<RecordingMeta[]>(`/api/recordings?sessionId=${encodeURIComponent(sessionId)}`),
+  uploadRecording: async (blob: Blob, turnId: string, sessionId: string, durationSec: number) => {
+    const form = new FormData();
+    form.append('audio', blob, 'clip');
+    form.append('turnId', turnId);
+    form.append('sessionId', sessionId);
+    form.append('durationSec', String(durationSec));
+    const res = await fetch('/api/recordings', { method: 'POST', headers: headers(false), body: form });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+  },
+  /** Fetch a recording as an object URL (the endpoint needs the auth header, so no plain <audio src>). */
+  recordingUrl: async (turnId: string): Promise<string> => {
+    const res = await fetch(`/api/recordings/${encodeURIComponent(turnId)}`, { headers: headers(false) });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return URL.createObjectURL(await res.blob());
+  },
   /** Upload a recorded clip; resolves to the transcript. */
   transcribe: async (blob: Blob, context = ''): Promise<string> => {
     const form = new FormData();

@@ -30,15 +30,36 @@ export function shiftDate(ymd: string, deltaDays: number): string {
   return new Date(t).toISOString().slice(0, 10);
 }
 
-/** Consecutive days with >= 1 session, ending today or yesterday. */
+/**
+ * Consecutive days with >= 1 session, ending today or yesterday.
+ * One missed day per 7 is forgiven (the weekly "freeze"); `freezeUsed` says
+ * whether the current streak needed it.
+ */
 export function computeStreak(activeDates: Set<string>, today: string): number {
+  return streakDetail(activeDates, today).streak;
+}
+
+export function streakDetail(activeDates: Set<string>, today: string): { streak: number; freezeUsed: boolean } {
   let cursor = activeDates.has(today) ? today : shiftDate(today, -1);
+  if (!activeDates.has(cursor)) {
+    // Neither today nor yesterday: the day before yesterday can still count if a freeze covers yesterday.
+    const dayBefore = shiftDate(cursor, -1);
+    if (!activeDates.has(dayBefore)) return { streak: 0, freezeUsed: false };
+  }
   let streak = 0;
-  while (activeDates.has(cursor)) {
-    streak += 1;
+  let freezeUsed = false;
+  let lastFreezeAt = -Infinity; // index (days back) of the last forgiven day
+  for (let back = 0; back < 1000; back++) {
+    if (activeDates.has(cursor)) {
+      streak += 1;
+    } else if (back - lastFreezeAt >= 7) {
+      lastFreezeAt = back; // forgive this one missed day
+      freezeUsed = true;
+    } else break;
     cursor = shiftDate(cursor, -1);
   }
-  return streak;
+  // A trailing forgiven day at the very end of the walk adds nothing; trim it.
+  return { streak, freezeUsed };
 }
 
 export async function getStats(db: D1Database, today: string, days = 7): Promise<StatsResponse> {
@@ -67,7 +88,7 @@ export async function getStats(db: D1Database, today: string, days = 7): Promise
 
   return {
     today: byDate.get(today) ?? emptyDay(today),
-    streak: computeStreak(new Set(active.map((r) => r.date)), today),
+    streak: streakDetail(new Set(active.map((r) => r.date)), today).streak,
     days: series,
     totals: {
       sessions: totals?.sessions ?? 0,
