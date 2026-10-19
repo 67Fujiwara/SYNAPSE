@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Briefcase, Coffee, MessageSquare, Mic, MicOff, Send, Wrench, X } from 'lucide-react';
 import type { Mode, Review, SessionPayload } from '@shared/types';
@@ -15,6 +15,8 @@ import { SummaryCard } from './SummaryCard';
 import { WordPopover } from './WordPopover';
 import { cx, fmtMinutes } from '@/lib/util';
 import { isIOS } from '@/lib/speech/platform';
+import { WebSpeechRecognizer } from '@/lib/speech/recognition';
+import { useServerStt } from './useServerStt';
 
 const MODES: { id: Mode; Icon: typeof Coffee }[] = [
   { id: 'daily', Icon: Coffee },
@@ -52,15 +54,20 @@ export function TalkPage() {
   const [reviewState, setReviewState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [reviewErr, setReviewErr] = useState<string | null>(null);
 
-  // 'auto' = always-on mic on desktop, push-to-talk on iOS (Safari can't restart
-  // recognition without a gesture). The server engine is push-to-talk by nature.
-  const micMode: 'continuous' | 'push' =
-    settings.sttEngine === 'server' ? 'push' : settings.micMode === 'auto' ? (isIOS() ? 'push' : 'continuous') : settings.micMode;
+  // Engine: the user's choice, or the server (Whisper) when this browser has no
+  // speech recognition at all (iPhone Chrome) and the Worker offers it.
+  const browserStt = useMemo(() => new WebSpeechRecognizer().supported, []);
+  const serverStt = useServerStt();
+  const engine = settings.sttEngine === 'server' || (!browserStt && serverStt) ? 'server' : 'browser';
+  // 'auto' = always-on mic on desktop, push-to-talk on iOS (recognition can't restart
+  // without a gesture there). The server engine has its own silence detector, so it
+  // works hands-free too.
+  const micMode: 'continuous' | 'push' = settings.micMode === 'auto' ? (isIOS() ? 'push' : 'continuous') : settings.micMode;
 
   const conv = useConversation({
     mode,
     micMode,
-    engine: settings.sttEngine,
+    engine,
     immersion: settings.immersion,
     scenario: mode === 'mywork' ? scenario : undefined,
     model: settings.chatModel,
@@ -145,7 +152,8 @@ export function TalkPage() {
             <X />
           </Link>
         </div>
-        {!conv.supported && <Card className="mb-4 border-warn/40 text-sm text-warn">{t('talk.unsupported')}</Card>}
+        {!conv.supported && <Card className="mb-4 border-warn/40 text-sm text-warn">{engine === 'server' ? t('talk.unsupportedServer') : t('talk.unsupported')}</Card>}
+        {engine === 'server' && conv.supported && <p className="mb-3 text-xs text-ink-3">{t('talk.engineServer')}</p>}
         {!getToken() && (
           <Card className="mb-4 flex items-center justify-between border-accent/40 text-sm">
             <span className="text-ink-2">{t('talk.noToken')}</span>

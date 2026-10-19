@@ -16,6 +16,18 @@ iPhone 対応は「機能」ではなく **置き場所と音声まわりの制�
 
 ヘッドレス Chromium に iPhone の UA を名乗らせ、偽の認識 API で **開始 → ready → タップ → 聞く → タップ → 送信 → AI → ready** が通ることは確認済み（`docs/worklog.md`）。
 
+## iPhone の Chrome で使う（2026-10-19 追加）
+
+iPhone の Chrome には音声認識 API が無い。そこで **サーバー認識（Workers AI の Whisper）** を標準にした。
+- Worker に `[ai] binding = "AI"`。`/api/transcribe` が `@cf/openai/whisper-large-v3-turbo` で文字起こしする（キー不要、Workers AI の無料枠）
+- ブラウザに認識 API が無ければ自動でサーバー方式になる（`TalkPage` の `engine`）。PC でも 設定 → 認識エンジン → サーバー で選べる
+- `ServerRecognizer` に無音検出（マイクの RMS）を入れたので、**タップしなくても黙れば送信**される（PC の常時オンでも使える）。
+  iPhone では「タップして話す」のまま（録音開始にジェスチャが要るため）
+- 録音は `MediaRecorder`（iOS は `audio/mp4`）。Whisper はそのまま受け付ける
+- 文字は話している最中には出ず、黙ってから 1〜2 秒後に出る（録音 → アップロード → 文字起こし）
+
+確認: ヘッドレス Chromium に偽マイク（WAV の音）を与え、認識 API を消した状態で **自動でサーバー方式になる → 音を検出 → 無音でクリップ終了 → アップロード（40KB）→ 文字が自分の発言になる** まで通した。Whisper 本体はこの環境から呼べないので未確認（Cloudflare へのデプロイ後に実機で）。
+
 ## 実機でしか分からないこと（チェックリスト）
 
 デプロイ後、iPhone の **Safari** で `https://…workers.dev` を開いて確認する。Chrome for iOS は音声認識 API が使えないことがあるので Safari で。

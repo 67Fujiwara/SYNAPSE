@@ -2,16 +2,29 @@ import type { RecognitionResult, Recognizer } from './types';
 import { api } from '../api/client';
 
 /**
- * Push-to-talk recognizer that records with MediaRecorder and sends the clip to
- * /api/transcribe. No interim results; one final result per start()/stop() pair.
- * Works wherever MediaRecorder does (iOS Safari records audio/mp4).
+ * Server-side recognizer: records with MediaRecorder and posts the clip to
+ * /api/transcribe (Whisper on Workers AI or an external API).
+ *
+ * A small voice-activity detector (RMS of the mic signal) ends the clip after
+ * `silenceMs` of quiet following speech, so it works hands-free like the
+ * browser recognizer. With keepAlive on, it starts a new clip after each one.
+ * Works wherever MediaRecorder does (iOS Chrome/Safari record audio/mp4).
  */
 export class ServerRecognizer implements Recognizer {
   readonly supported: boolean;
   private rec: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
+  private ctx: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
+  private vadTimer: number | null = null;
   private chunks: Blob[] = [];
   private startedAt = 0;
+  private speechAt = 0; // when speech was first detected in this clip
+  private lastLoudAt = 0;
+  private noiseFloor = 0.01;
+  private keepAlive = false;
+  private wantListening = false;
+  private busy = 0; // uploads in flight
 
   private resultCb: (r: RecognitionResult) => void = () => {};
   private speechStartCb: () => void = () => {};
@@ -19,28 +32,38 @@ export class ServerRecognizer implements Recognizer {
   private errorCb: (code: string) => void = () => {};
   private stateCb: (listening: boolean) => void = () => {};
 
-  constructor() {
+  constructor(
+    private silenceMs = 1200,
+    private maxMs = 45_000,
+  ) {
     this.supported = typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
   }
 
+  setSilence(ms: number) {
+    this.silenceMs = ms;
+  }
+
   private pickMime(): string | undefined {
-    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
-    return candidates.find((m) => MediaRecorder.isTypeSupported(m));
+    return ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find((m) => MediaRecorder.isTypeSupported(m));
   }
 
   start() {
+    this.wantListening = true;
     if (this.rec) return;
     void (async () => {
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.stream ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       } catch {
+        this.wantListening = false;
         this.errorCb('not-allowed');
         return;
       }
+      if (!this.wantListening) return; // stopped while waiting for permission
       const mime = this.pickMime();
       const rec = new MediaRecorder(this.stream, mime ? { mimeType: mime } : undefined);
       this.rec = rec;
       this.chunks = [];
+      this.speechAt = 0;
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) this.chunks.push(e.data);
       };
@@ -48,35 +71,108 @@ export class ServerRecognizer implements Recognizer {
       rec.start(250);
       this.startedAt = Date.now();
       this.stateCb(true);
-      this.speechStartCb();
+      this.startVad();
     })();
   }
 
+  /** Stop the current clip (it is transcribed) and don't start another until start() is called. */
   stop() {
+    this.wantListening = false;
+    this.endClip();
+  }
+
+  private endClip() {
+    this.stopVad();
     const rec = this.rec;
     if (!rec) return;
     this.rec = null;
-    this.speechEndCb();
+    if (this.speechAt) this.speechEndCb();
     this.stateCb(false);
-    if (rec.state !== 'inactive') rec.stop();
-    this.stream?.getTracks().forEach((t) => t.stop());
-    this.stream = null;
+    if (rec.state !== 'inactive') rec.stop(); // -> onstop -> finish()
   }
 
+  // ---- voice activity detection ------------------------------------------------------------
+  private startVad() {
+    if (!this.stream) return;
+    try {
+      this.ctx ??= new AudioContext();
+      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (!this.analyser) {
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 1024;
+        this.ctx.createMediaStreamSource(this.stream).connect(this.analyser);
+      }
+    } catch {
+      return; // no VAD: the caller's hard stop / tap still works
+    }
+    const buf = new Float32Array(this.analyser.fftSize);
+    this.lastLoudAt = Date.now();
+    this.vadTimer = window.setInterval(() => {
+      if (!this.analyser || !this.rec) return;
+      this.analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const rms = Math.sqrt(sum / buf.length);
+      // Adaptive floor: follow quiet levels slowly, never above a sane cap.
+      if (rms < this.noiseFloor) this.noiseFloor = this.noiseFloor * 0.9 + rms * 0.1;
+      else this.noiseFloor = Math.min(0.03, this.noiseFloor * 0.995 + rms * 0.005);
+      const threshold = Math.max(0.012, this.noiseFloor * 3);
+      const now = Date.now();
+      if (rms > threshold) {
+        this.lastLoudAt = now;
+        if (!this.speechAt) {
+          this.speechAt = now;
+          this.speechStartCb();
+        }
+      } else if (this.speechAt && now - this.lastLoudAt > this.silenceMs) {
+        this.endClip(); // speech, then silence -> done
+        return;
+      }
+      if (now - this.startedAt > this.maxMs) this.endClip();
+    }, 50);
+  }
+
+  private stopVad() {
+    if (this.vadTimer !== null) {
+      window.clearInterval(this.vadTimer);
+      this.vadTimer = null;
+    }
+  }
+
+  // ---- upload --------------------------------------------------------------------------------
   private async finish(mime: string) {
     const blob = new Blob(this.chunks, { type: mime || 'audio/webm' });
     this.chunks = [];
-    if (Date.now() - this.startedAt < 400 || blob.size < 1000) return; // a tap, not speech
+    const hadSpeech = this.speechAt > 0 || !this.analyser; // without VAD, trust the caller
+    const next = () => {
+      if (this.wantListening && this.keepAlive) this.start();
+      else this.releaseMic();
+    };
+    if (!hadSpeech || Date.now() - this.startedAt < 400 || blob.size < 1000) return next();
+    this.busy += 1;
     try {
       const text = await api.transcribe(blob);
       if (text) this.resultCb({ final: text, interim: '' });
     } catch (e) {
       this.errorCb(e instanceof Error ? e.message : 'transcribe-failed');
+    } finally {
+      this.busy -= 1;
+      next();
     }
   }
 
-  setKeepAlive() {
-    /* push-to-talk never auto-restarts */
+  private releaseMic() {
+    if (this.rec || this.busy > 0 || this.wantListening) return;
+    this.stopVad();
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    this.analyser = null;
+    void this.ctx?.close();
+    this.ctx = null;
+  }
+
+  setKeepAlive(on: boolean) {
+    this.keepAlive = on;
   }
   onResult(cb: (r: RecognitionResult) => void) {
     this.resultCb = cb;

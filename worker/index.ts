@@ -80,7 +80,7 @@ app.get('/api/health', async (c) => {
     keyMessage,
     keyHint: hint,
     hasWorkspace: Boolean(c.env.ANTHROPIC_WORKSPACE_ID),
-    stt: Boolean(c.env.STT_API_KEY),
+    stt: Boolean(c.env.AI || c.env.STT_API_KEY),
   });
 });
 
@@ -195,33 +195,49 @@ app.post('/api/translate', async (c) => {
 // Fallback for browsers whose SpeechRecognition is unreliable (iOS Safari).
 // The client records a short clip (MediaRecorder) and posts it here; we forward
 // it to an OpenAI-compatible /audio/transcriptions endpoint and return the text.
+const WHISPER_PROMPT =
+  'Casual conversation between engineers about electrical and controls work: control panel, terminal block, PLC, HMI, VFD, servo drive, E-stop, interlock, commissioning, FAT, drawing revision.';
+
 app.post('/api/transcribe', async (c) => {
-  if (!c.env.STT_API_KEY) return c.json({ error: 'Server speech-to-text is not configured (STT_API_KEY).' }, 501);
+  if (!c.env.AI && !c.env.STT_API_KEY) return c.json({ error: 'Server speech-to-text is not configured (Workers AI binding or STT_API_KEY).' }, 501);
   const form = await c.req.formData();
   const audio = form.get('audio');
   if (!(audio instanceof File) || audio.size === 0) return c.json({ error: 'audio file required' }, 400);
   if (audio.size > 20 * 1024 * 1024) return c.json({ error: 'audio too large (max 20MB)' }, 413);
 
+  // 1) Workers AI Whisper (default): free tier, no key, runs on Cloudflare.
+  if (c.env.AI) {
+    try {
+      const bytes = new Uint8Array(await audio.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const out = (await c.env.AI.run('@cf/openai/whisper-large-v3-turbo', {
+        audio: btoa(bin),
+        task: 'transcribe',
+        language: 'en',
+        vad_filter: true,
+        initial_prompt: WHISPER_PROMPT,
+      })) as { text?: string };
+      return c.json({ text: (out.text ?? '').trim(), engine: 'workers-ai' });
+    } catch (err) {
+      if (!c.env.STT_API_KEY) return c.json({ error: `Workers AI transcription failed: ${err instanceof Error ? err.message : String(err)}` }, 502);
+      // fall through to the external API
+    }
+  }
+
+  // 2) Any OpenAI-compatible /audio/transcriptions API (STT_API_KEY).
   const upstream = new FormData();
-  // Give the blob a filename with a sensible extension; some providers key the decoder on it.
   const ext = audio.type.includes('mp4') ? 'mp4' : audio.type.includes('ogg') ? 'ogg' : audio.type.includes('wav') ? 'wav' : 'webm';
   upstream.append('file', audio, `speech.${ext}`);
   upstream.append('model', c.env.STT_MODEL || 'whisper-1');
   upstream.append('language', 'en');
+  upstream.append('prompt', WHISPER_PROMPT);
   upstream.append('response_format', 'json');
-
   const base = (c.env.STT_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
-  const res = await fetch(`${base}/audio/transcriptions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${c.env.STT_API_KEY}` },
-    body: upstream,
-  });
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300);
-    return c.json({ error: `Speech-to-text failed (${res.status}): ${detail}` }, 502);
-  }
+  const res = await fetch(`${base}/audio/transcriptions`, { method: 'POST', headers: { Authorization: `Bearer ${c.env.STT_API_KEY}` }, body: upstream });
+  if (!res.ok) return c.json({ error: `Speech-to-text failed (${res.status}): ${(await res.text()).slice(0, 300)}` }, 502);
   const data = (await res.json()) as { text?: string };
-  return c.json({ text: (data.text ?? '').trim() });
+  return c.json({ text: (data.text ?? '').trim(), engine: 'external' });
 });
 
 // --- Review (Phase 2): post-session corrections with the accurate model ----------

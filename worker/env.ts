@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database;
   BUCKET: R2Bucket;
   ASSETS?: Fetcher;
+  /** Workers AI (Whisper). Present when [ai] is configured in wrangler.toml. */
+  AI?: Ai;
   ANTHROPIC_API_KEY: string;
   /** Required when the API key is user-scoped (sk-ant-usr-…) rather than workspace-scoped. */
   ANTHROPIC_WORKSPACE_ID?: string;

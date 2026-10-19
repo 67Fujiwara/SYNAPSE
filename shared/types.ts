@@ -87,7 +87,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reviewModel: 'claude-opus-5-5',
   saveRecordings: false,
   micMode: 'auto',
-  sttEngine: 'browser',
+  sttEngine: 'server',
 };
 
 // ---- /api/chat --------------------------------------------------------------

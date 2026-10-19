@@ -122,11 +122,11 @@
   "settings.micMode.continuous": "常に聞く",
   "settings.micMode.push": "タップして話す",
   "settings.sttEngine": "認識エンジン",
-  "settings.sttEngine.browser": "ブラウザ（無料。Chrome / Safari）",
-  "settings.sttEngine.server": "サーバー（録音して API で文字起こし）",
-  "settings.sttEngine.help": "サーバー方式は Worker に STT_API_KEY が必要。Safari の認識が不安定なときに使う",
-  "settings.sttEngine.missing": "Worker にサーバー文字起こしが設定されていません（STT_API_KEY）。",
-  "settings.sttEngine.ok": "サーバー文字起こしは設定済みです。",
+  "settings.sttEngine.browser": "ブラウザ（話しながら文字が出る。非ネイティブの発音に弱い）",
+  "settings.sttEngine.server": "サーバー — Cloudflare の Whisper（高精度。黙ってから文字が出る）",
+  "settings.sttEngine.help": "サーバー方式は録音を Worker で文字起こしします。iPhone の Chrome でも動きます。Workers AI の無料枠を使います。",
+  "settings.sttEngine.missing": "Worker に文字起こしがまだありません。最新版をデプロイ（[ai] バインディング）するか STT_API_KEY を設定してください。",
+  "settings.sttEngine.ok": "サーバー文字起こしが使えます。",
   "settings.token.keyWorkspace": "接続できましたが、このキーはワークスペースに紐づいていません（sk-ant-usr-… 形式）。.dev.vars に ANTHROPIC_WORKSPACE_ID=<ワークスペース ID> を 1 行足して再起動する（Console → Settings → Workspaces で ID をコピー）か、ワークスペースの中で作ったキーに替えてください（Console → Workspaces → 自分のワークスペース → API Keys）。",
   "talk.ja": "訳",
   "summary.jpHints": "日本語ヒント",
@@ -199,5 +199,7 @@
   "word.saved": "保存しました",
   "word.tapHint": "単語をタップすると意味を調べられます",
   "summary.topFixes": "直すならここ",
-  "summary.win": "良かった表現"
+  "summary.win": "良かった表現",
+  "talk.unsupportedServer": "このブラウザは録音（MediaRecorder）に対応していません。Chrome / Edge / Safari を使ってください。",
+  "talk.engineServer": "認識: サーバーの Whisper。話している最中ではなく、黙ってから 1〜2 秒後に文字が出ます。"
 }

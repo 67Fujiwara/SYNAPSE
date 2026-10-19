@@ -88,9 +88,13 @@ export function useConversation(cfg: ConversationConfig) {
   cfgRef.current = cfg;
 
   const recognizer: Recognizer = useMemo(
-    () => (cfg.engine === 'server' ? new ServerRecognizer() : new WebSpeechRecognizer('en-US')),
+    () => (cfg.engine === 'server' ? new ServerRecognizer(cfg.silenceSec * 1000) : new WebSpeechRecognizer('en-US')),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [cfg.engine],
   );
+  useEffect(() => {
+    if (recognizer instanceof ServerRecognizer) recognizer.setSilence(cfg.silenceSec * 1000);
+  }, [recognizer, cfg.silenceSec]);
   const synth = useMemo(() => new WebSpeechSynthesizer(), []);
 
   const history = useRef<ChatMessage[]>([]);

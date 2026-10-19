@@ -25,6 +25,10 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
+# Workers AI: Whisper for server-side speech-to-text (no extra account or key).
+[ai]
+binding = "AI"
+
 [vars]
 # Non-secret defaults. Override per environment if needed.
 DEFAULT_CHAT_MODEL = "claude-sonnet-5-5"

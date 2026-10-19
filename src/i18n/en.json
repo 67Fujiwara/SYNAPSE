@@ -122,11 +122,11 @@
   "settings.micMode.continuous": "Always listening",
   "settings.micMode.push": "Tap to talk",
   "settings.sttEngine": "Recognition engine",
-  "settings.sttEngine.browser": "Browser (free, Chrome / Safari)",
-  "settings.sttEngine.server": "Server (records and transcribes via API)",
-  "settings.sttEngine.help": "Server mode needs STT_API_KEY on the Worker. Use it if Safari's recognition is unreliable.",
-  "settings.sttEngine.missing": "Server speech-to-text is not configured on the Worker (STT_API_KEY).",
-  "settings.sttEngine.ok": "Server speech-to-text is configured.",
+  "settings.sttEngine.browser": "Browser (instant text while you speak; weaker with non-native accents)",
+  "settings.sttEngine.server": "Server — Whisper on Cloudflare (more accurate; text appears after you pause)",
+  "settings.sttEngine.help": "Server mode records a clip and transcribes it on the Worker. Works on iPhone Chrome. Uses the Workers AI free tier.",
+  "settings.sttEngine.missing": "The Worker has no speech-to-text yet. Deploy the latest version ([ai] binding) or set STT_API_KEY.",
+  "settings.sttEngine.ok": "Server speech-to-text is available.",
   "settings.token.keyWorkspace": "Connected, but this API key is not tied to a workspace (sk-ant-usr-… keys). Either add ANTHROPIC_WORKSPACE_ID=<workspace id> to .dev.vars (Console → Settings → Workspaces) and restart, or create a key inside a workspace (Console → Workspaces → your workspace → API Keys).",
   "talk.ja": "訳",
   "summary.jpHints": "JP hints",
@@ -199,5 +199,7 @@
   "word.saved": "Saved to shadowing",
   "word.tapHint": "Tap a word to look it up",
   "summary.topFixes": "Fix these",
-  "summary.win": "Nice one"
+  "summary.win": "Nice one",
+  "talk.unsupportedServer": "This browser can't record audio (MediaRecorder). Use Chrome, Edge or Safari.",
+  "talk.engineServer": "Recognition: Whisper on the server. Your words appear after you pause (about 1–2 s), not while you speak."
 }

@@ -74,3 +74,21 @@
   ブラウザは AI 系の 3 エンドポイントをモックして デッキ → 練習 → 採点 → レビュー → 単語 → サマリー を通した
 - 未着手: iPhone Chrome 向けの Workers AI Whisper（ユーザーの指示で Phase 2 を先に）。`[ai] binding="AI"` と
   `@cf/openai/whisper-large-v3-turbo`（入力 `audio: base64`）で `/api/transcribe` を置き換える。型は workers-types にある
+
+## 2026-10-19 — サーバー認識（Whisper on Workers AI）と無音検出
+
+- ユーザー: 「Chrome 内蔵の認識は精度が悪い」「iPhone は Chrome しか使わない」→ Workers AI の Whisper を標準に
+- `wrangler.toml` に `[ai] binding = "AI"`。`/api/transcribe` は AI バインディングがあれば `@cf/openai/whisper-large-v3-turbo`
+  （入力は base64、`vad_filter`、業界用語の `initial_prompt`）、無ければ従来の外部 API、どちらも無ければ 501
+- **注意: `[ai]` があると `wrangler dev` はリモートのプロキシセッションを張る**（Workers AI はローカルでエミュレートされない）。
+  ログインしていない環境では dev サーバーの `/api/*` が 500 になる。この sandbox がそれ。ユーザーの PC は `wrangler login` 済みなので動く
+- `ServerRecognizer` を書き直し: AudioContext の RMS で VAD（適応ノイズフロア ×3、下限 0.012）。発話後 `silenceSec` の無音で
+  クリップ終了 → アップロード → `onResult` → `send()`。`keepAlive` なら次のクリップを自動で開始（PC の常時オンで使える）。
+  無音のままなら最大 45 秒で区切る。マイクストリームはクリップ間で持ち回り、`stop()` 後に解放
+- `TalkPage`: `engine = 設定が server || (ブラウザ認識なし && Worker に stt あり) ? server : browser`。`useServerStt` が
+  `/api/health` の `stt` を 1 回だけ見る。サーバー方式でも push を強制しない（micMode は設定どおり）
+- 既定の `sttEngine` を `server` に変更（新規のみ。既存の D1 設定は `browser` のまま → 設定画面で切り替える）
+- `*.tsbuildinfo` を git から外した（pull のたびに衝突していた）
+- 検証: tsc / vitest 21 / build。Playwright + `--use-file-for-fake-audio-capture`（220Hz の音 2 秒 → 無音）で
+  自動選択 → VAD → 40KB アップロード → 発言として表示 を確認。Whisper 本体は未確認（デプロイ後に実機）
+- 教訓: `pkill -f "vite --port"` は自分のシェル（コマンド文字列にその語が入る）も殺す。`pgrep -f "[v]ite"` を使う
