@@ -9,8 +9,8 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "synapse-db"
-# Replace after `wrangler d1 create synapse-db` (any value works for local dev).
-database_id = "00000000-0000-0000-0000-000000000000"
+# The D1 database of this deployment (created with `wrangler d1 create synapse-db`).
+database_id = "0a65b8ee-f430-48fd-8120-4643f0cd6251"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
