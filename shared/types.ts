@@ -233,6 +233,8 @@ export interface ProgressResponse {
   shadow: { attempts: number; avgScore: number; bestWpm: number; durationSec: number; mastered: ShadowItem[] };
   week: { current: WeekAgg; previous: WeekAgg; weekStart: string };
   challenge: { done: number; target: number; mode: Mode };
+  /** Phase 4: instant composition drills. */
+  instant: InstantStats;
 }
 
 export interface RecordingMeta {
@@ -253,4 +255,82 @@ export interface ExportBundle {
   shadowItems: ShadowItem[];
   shadowAttempts: ShadowAttempt[];
   dailyStats: (DailyStat & { bonusXp: number })[];
+  /** Phase 4 (absent in older bundles). */
+  instantItems?: InstantItem[];
+  instantAttempts?: InstantAttempt[];
+}
+
+// ---- Phase 4: instant composition (瞬間英作文) -----------------------------------------
+
+import type { CueKind, InstantLevel } from './instant';
+export type { CueKind, InstantLevel } from './instant';
+
+export type InstantSource = 'bank' | 'ai' | 'manual';
+
+export interface InstantItem {
+  id: string;
+  level: InstantLevel;
+  cueKind: CueKind;
+  /** Japanese sentence / situation, or the English base sentence for transforms. */
+  cue: string;
+  /** Transform drills only: the change to make, in Japanese (e.g. 疑問文に). */
+  transform: string | null;
+  /** Model answer. */
+  answer: string;
+  /** Other accepted answers (scored against all; best wins). */
+  alternatives: string[];
+  /** Situation cues: phrases a good answer should contain. */
+  keywords: string[];
+  /** Short Japanese grammar / phrasing hint shown after a miss. */
+  hint: string | null;
+  topic: string | null;
+  source: InstantSource;
+  dueAt: string | null;
+  intervalDays: number;
+  bestScore: number;
+  /** Fastest latency (seconds to the first word) on a pass; null until passed once. */
+  bestLatency: number | null;
+  masteredCount: number;
+  attempts: number;
+  createdAt: string;
+}
+
+export interface NewInstantItem {
+  level: InstantLevel;
+  cueKind: CueKind;
+  cue: string;
+  transform?: string | null;
+  answer: string;
+  alternatives?: string[];
+  keywords?: string[];
+  hint?: string | null;
+  topic?: string | null;
+  source: InstantSource;
+}
+
+export interface InstantAttempt {
+  id: string;
+  itemId: string;
+  at: string;
+  score: number;
+  /** Seconds from cue shown to first word. */
+  latencySec: number;
+  heard: string;
+  passed: boolean;
+  timedOut: boolean;
+}
+
+export interface InstantLevelStat {
+  level: InstantLevel;
+  total: number;
+  due: number;
+  mastered: number;
+}
+
+export interface InstantStats {
+  attempts: number;
+  passRate: number; // 0..100 over all attempts
+  avgLatencySec: number; // passes only
+  mastered: number;
+  byLevel: InstantLevelStat[];
 }

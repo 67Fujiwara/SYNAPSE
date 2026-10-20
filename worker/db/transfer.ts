@@ -4,6 +4,7 @@ import { getSession, rowToSession } from './sessions';
 import { getSettings, putSettings } from './settings';
 import { saveSession } from './sessions';
 import { saveReview } from './reviews';
+import { exportInstant, importInstantStatements } from './instant';
 
 export async function exportAll(db: D1Database): Promise<ExportBundle> {
   const [sessionRows, reviewRows, itemRows, attemptRows, dailyRows, settings] = await Promise.all([
@@ -14,6 +15,7 @@ export async function exportAll(db: D1Database): Promise<ExportBundle> {
     db.prepare('SELECT * FROM daily_stats ORDER BY date').all<Record<string, number | string>>(),
     getSettings(db),
   ]);
+  const instant = await exportInstant(db);
   const sessions = [];
   for (const r of sessionRows.results) {
     const p = await getSession(db, r.id);
@@ -70,6 +72,8 @@ export async function exportAll(db: D1Database): Promise<ExportBundle> {
       missionDone: Number(r.mission_done),
       bonusXp: Number(r.bonus_xp ?? 0),
     })),
+    instantItems: instant.items,
+    instantAttempts: instant.attempts,
   };
 }
 
@@ -102,6 +106,7 @@ export async function importAll(db: D1Database, b: ExportBundle): Promise<{ sess
         .bind(a.id, a.itemId, a.at, a.score, a.wpm, a.speed, a.mode ?? 'shadow', a.durationSec ?? 0),
     );
   }
+  stmts.push(...importInstantStatements(db, b.instantItems ?? [], b.instantAttempts ?? []));
   for (const d of b.dailyStats ?? []) {
     stmts.push(
       db

@@ -10,6 +10,7 @@ import scenarioGenerator from './scenario-generator.md';
 import translate from './translate.md';
 import review from './review.md';
 import word from './word.md';
+import instant from './instant.md';
 import type { Immersion, Mode } from '../../shared/types';
 
 const IMMERSION: Record<Immersion, string> = {
@@ -40,3 +41,4 @@ export const SCENARIO_GENERATOR_SYSTEM = scenarioGenerator.trim();
 export const TRANSLATE_SYSTEM = translate.trim();
 export const REVIEW_SYSTEM = review.trim();
 export const WORD_SYSTEM = word.trim();
+export const INSTANT_SYSTEM = instant.trim();

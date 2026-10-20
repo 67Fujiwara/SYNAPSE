@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { cx } from '@/lib/util';
-import { ArrowRight, Flame, Mic, Repeat, ClipboardCheck, CloudOff, RefreshCw } from 'lucide-react';
+import { ArrowRight, Flame, Mic, Repeat, Zap, ClipboardCheck, CloudOff, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
@@ -121,7 +121,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link to="/talk" className="card group flex items-center gap-4 p-5 transition hover:border-accent/60 hover:shadow-glow">
           <span className="grid h-12 w-12 place-items-center rounded-xl bg-accent/15 text-accent">
             <Mic />
@@ -138,6 +138,15 @@ export function Dashboard() {
           <span>
             <span className="block font-display text-lg font-semibold">{t('home.shadow')}</span>
             <span className="block text-xs text-ink-2">{t('home.shadow.sub')}</span>
+          </span>
+        </Link>
+        <Link to="/instant" className="card group flex items-center gap-4 p-5 transition hover:border-accent/60 hover:shadow-glow">
+          <span className="grid h-12 w-12 place-items-center rounded-xl bg-accent/15 text-accent">
+            <Zap />
+          </span>
+          <span>
+            <span className="block font-display text-lg font-semibold">{t('home.instant')}</span>
+            <span className="block text-xs text-ink-2">{prog && prog.instant.byLevel.some((l) => l.due > 0) ? t('home.instant.due', { n: prog.instant.byLevel.reduce((a, l) => a + l.due, 0) }) : t('home.instant.sub')}</span>
           </span>
         </Link>
         <Link to="/review" className="card group flex items-center gap-4 p-5 transition hover:border-accent/60 hover:shadow-glow">

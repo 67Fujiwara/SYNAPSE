@@ -1,4 +1,5 @@
 import type { DailyStat, Mode, ProgressResponse, Session, ShadowItem, WeekAgg } from '../../shared/types';
+import { instantStats } from './instant';
 import { rowToSession } from './sessions';
 import { shiftDate, streakDetail } from './stats';
 
@@ -111,6 +112,7 @@ export async function getProgress(db: D1Database, today: string): Promise<Progre
   const shadowPrev = shadowWeek.results.filter((a) => a.at.slice(0, 10) < ws);
 
   const sd = streakDetail(new Set(active.results.map((r) => r.date)), today);
+  const instant = await instantStats(db, new Date().toISOString());
 
   return {
     days,
@@ -147,6 +149,7 @@ export async function getProgress(db: D1Database, today: string): Promise<Progre
       ),
     },
     week: { current: aggregateWeek(cur, shadowCur), previous: aggregateWeek(prev, shadowPrev), weekStart: ws },
+    instant,
     challenge: { done: challenge?.n ?? 0, target: 3, mode: 'business' },
   };
 }

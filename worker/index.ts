@@ -4,10 +4,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { Env } from './env';
-import type { ChatEvent, ChatRequest, NewShadowItem, Review, SessionPayload, Settings, ShadowMode, WordInfo } from '../shared/types';
-import { buildChatSystem, REVIEW_SYSTEM, SCENARIO_GENERATOR_SYSTEM, TRANSLATE_SYSTEM, WORD_SYSTEM } from './prompts';
+import type { ChatEvent, ChatRequest, NewInstantItem, NewShadowItem, Review, SessionPayload, Settings, ShadowMode, WordInfo } from '../shared/types';
+import { buildChatSystem, INSTANT_SYSTEM, REVIEW_SYSTEM, SCENARIO_GENERATOR_SYSTEM, TRANSLATE_SYSTEM, WORD_SYSTEM } from './prompts';
 import { getReview, listReviews, saveReview } from './db/reviews';
 import { addItems, deleteItem, listItems, recordAttempt } from './db/shadow';
+import { addBonusXp, addInstantItems, deleteInstantItem, instantMaterials, listInstantItems, recordInstantAttempt } from './db/instant';
+import { levelSpec, LEVELS, type InstantLevel } from '../shared/instant';
 import { completeMission, getProgress } from './db/progress';
 import { exportAll, importAll } from './db/transfer';
 import { findRecording, listRecordings, purgeRecordings, putRecording, recordingKey } from './db/recordings';
@@ -408,6 +410,117 @@ app.post('/api/shadow/attempts', async (c) => {
     durationSec: Number((b as { durationSec?: number }).durationSec) || 0,
   });
   return item ? c.json(item) : c.json({ error: 'not found' }, 404);
+});
+
+// --- Instant composition (Phase 4) -------------------------------------------------
+const CUE_KINDS = ['sentence', 'transform', 'situation'] as const;
+function isLevel(n: unknown): n is InstantLevel {
+  return typeof n === 'number' && LEVELS.some((l) => l.level === n);
+}
+
+app.get('/api/instant/items', async (c) => {
+  const lv = Number(c.req.query('level'));
+  return c.json(await listInstantItems(c.env.DB, isLevel(lv) ? lv : undefined));
+});
+
+app.post('/api/instant/items', async (c) => {
+  const { items } = (await c.req.json()) as { items: NewInstantItem[] };
+  if (!Array.isArray(items) || items.length === 0) return c.json({ error: 'items required' }, 400);
+  const clean = items
+    .slice(0, 200)
+    .filter((i) => isLevel(i.level) && CUE_KINDS.includes(i.cueKind) && typeof i.cue === 'string' && typeof i.answer === 'string' && i.answer.trim() && i.answer.length <= 400 && i.cue.length <= 400)
+    .map((i) => ({ ...i, source: i.source === 'ai' ? 'ai' : i.source === 'manual' ? 'manual' : 'bank' }) as NewInstantItem);
+  const ids = clean.map(() => crypto.randomUUID());
+  return c.json(await addInstantItems(c.env.DB, clean, ids, new Date().toISOString()));
+});
+
+app.delete('/api/instant/items/:id', async (c) => {
+  await deleteInstantItem(c.env.DB, c.req.param('id'));
+  return c.json({ ok: true });
+});
+
+const InstantSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        cue: z.string(),
+        transform: z.string().nullable(),
+        answer: z.string(),
+        alternatives: z.array(z.string()).max(3),
+        keywords: z.array(z.string()).max(4),
+        hint: z.string(),
+        topic: z.string(),
+      }),
+    )
+    .max(15),
+});
+
+/** Generate a fresh set of drills for one level from the learner's own material. */
+app.post('/api/instant/generate', async (c) => {
+  const b = (await c.req.json()) as { level?: number; count?: number; focus?: string; model?: string };
+  if (!isLevel(b.level)) return c.json({ error: 'level 1..5 required' }, 400);
+  const spec = levelSpec(b.level);
+  const count = Math.max(3, Math.min(15, Number(b.count) || 10));
+  const m = await instantMaterials(c.env.DB, b.level);
+  const lines = [
+    `LEVEL ${spec.level}: ${spec.brief}`,
+    `Cue kind: ${spec.cueKind}. Answer length: ${spec.words[0]}–${spec.words[1]} words. Produce exactly ${count} drills.`,
+    b.focus?.trim() ? `Focus requested by the learner: ${b.focus.trim().slice(0, 300)}` : '',
+    m.scenario ? `Learner's current project (My Work scenario):\n${m.scenario}` : '',
+    m.fixes.length ? `Sentences a coach corrected for this learner (drill these patterns):\n- ${m.fixes.join('\n- ')}` : '',
+    m.phrases.length ? `Phrases the coach suggested:\n- ${m.phrases.join('\n- ')}` : '',
+    m.existing.length ? `Drills the learner already has at this level (do not repeat):\n- ${m.existing.join('\n- ')}` : '',
+  ].filter(Boolean);
+  const client = anthropic(c.env);
+  let parsed: z.infer<typeof InstantSchema> | null = null;
+  try {
+    const res = await client.messages.parse({
+      model: b.model || c.env.DEFAULT_CHAT_MODEL || 'claude-sonnet-5-5',
+      max_tokens: 4000,
+      system: [{ type: 'text', text: INSTANT_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: lines.join('\n\n') }],
+      output_config: { format: zodOutputFormat(InstantSchema), effort: 'low' },
+    });
+    if (res.stop_reason !== 'refusal') parsed = res.parsed_output ?? null;
+  } catch (e) {
+    if (needsWorkspace(e)) return c.json({ error: 'The API key is user-scoped: set ANTHROPIC_WORKSPACE_ID on the Worker.' }, 502);
+    throw e;
+  }
+  if (!parsed) return c.json({ error: 'Drills could not be generated.' }, 502);
+  const items: NewInstantItem[] = parsed.items.map((it) => ({
+    level: spec.level,
+    cueKind: spec.cueKind,
+    cue: it.cue,
+    transform: spec.cueKind === 'transform' ? it.transform || null : null,
+    answer: it.answer,
+    alternatives: it.alternatives,
+    keywords: spec.cueKind === 'situation' ? it.keywords : [],
+    hint: it.hint || null,
+    topic: it.topic || null,
+    source: 'ai',
+  }));
+  const ids = items.map(() => crypto.randomUUID());
+  return c.json(await addInstantItems(c.env.DB, items, ids, new Date().toISOString()));
+});
+
+const INSTANT_PASS_XP = 2;
+app.post('/api/instant/attempts', async (c) => {
+  const b = (await c.req.json()) as { itemId?: string; score?: number; latencySec?: number; heard?: string; passed?: boolean; timedOut?: boolean };
+  if (!b.itemId || typeof b.score !== 'number') return c.json({ error: 'itemId and score required' }, 400);
+  const passed = Boolean(b.passed);
+  const item = await recordInstantAttempt(c.env.DB, {
+    id: crypto.randomUUID(),
+    itemId: b.itemId,
+    at: new Date().toISOString(),
+    score: Math.max(0, Math.min(100, Math.round(b.score))),
+    latencySec: Math.max(0, Math.round((Number(b.latencySec) || 0) * 100) / 100),
+    heard: typeof b.heard === 'string' ? b.heard : '',
+    passed,
+    timedOut: Boolean(b.timedOut),
+  });
+  if (!item) return c.json({ error: 'not found' }, 404);
+  if (passed) await addBonusXp(c.env.DB, localDate(c), INSTANT_PASS_XP);
+  return c.json({ item, bonusXp: passed ? INSTANT_PASS_XP : 0 });
 });
 
 // --- Progress / missions (Phase 3) -------------------------------------------------

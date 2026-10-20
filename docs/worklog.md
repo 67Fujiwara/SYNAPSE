@@ -138,3 +138,24 @@
   `playing` 直後に `pause`（位置 0）で止まり `ended` が来なかった（pause() も load() も呼ばれていないのに）。
   ヘッドレス Chromium で再現。対策: **音声要素は 1 つを使い回し**、解錠はその要素で 100ms の本物の無音 WAV（実行時に生成）を鳴らす。
   ついでに `ended` が来ない場合の保険タイマー（duration + 1.5s）を付けた
+
+## 2026-10-20 — Phase 4: 瞬間英作文（5 段階レベル）
+
+- 要望: 「最も有効な瞬間英作文のやり方」→「進めて。何段階かレベル設定できるように」
+- 設計の芯: **お題を見てから最初の一語までの秒数**を主要指標にする（スコアだけだと「ゆっくり考えれば正解」になる）。
+  レベルごとに `limitSec`（話し始めの制限）/ `fastSec`（自動化とみなす速さ）/ `passScore` を `shared/instant.ts` の `LEVELS` に持ち、Worker（生成プロンプト）と UI（タイマー・合否・習得）が同じ表を見る
+- レベル: Lv1 基礎 (sentence, 6s) / Lv2 文型の切り替え (transform: 英文 + 「疑問文に」, 5s) / Lv3 仕事 (sentence, 4s) / Lv4 場面 (situation: 文を出さず複数正解 + 必須フレーズ, 4s, 合格 60) / Lv5 2 文 (situation, 3s)
+- 採点 `src/lib/instant/score.ts`: お手本 + 別解のうち最も近いものと `align`。場面キューは `0.5 × アライメント + 0.5 × 必須フレーズの網羅率`
+  （自由回答なので 1 つの文に寄せすぎない）。テスト付き
+- 習得 `nextMastered`: 速い合格 +1 / 遅い合格は据え置き / 失敗 0。3 回で「自動化」(★)。間隔反復は `shared/srs.ts` を流用（失敗は翌日）
+- 流れ (`Drill.tsx`): マイクは **ラウンド中ずっと ON**（`keepAlive`）。お題表示 → `onSpeechStart`（または最初の結果）で時計を止める →
+  確定で採点 → お手本を自動再生 → **リピート 3 回はボタン無し**（result 中に聞こえた文がお手本に 80% 以上一致でカウント、3 回で自動的に次へ）。
+  Space / Enter で次へ、Esc でスキップ。サーバー認識は VAD が 250ms 鳴ってから「声」と判定するので、その分を秒数から引く
+- 生成 `/api/instant/generate`: Sonnet + `zodOutputFormat`。材料は 直近のレビューの添削 (`fixed`) と better phrases・最新の My Work シナリオ・同レベルの既存の答え（重複回避）。
+  テーマ（任意）で絞れる。Whisper の `initial_prompt` にお手本を渡すと採点が甘くなるので渡さない
+- 基本セット `src/data/instantbank.ts`（各レベル 8〜10 問）。問題の無いレベルは「始める」で基本セットが自動で入る
+- D1 0005: `instant_items` / `instant_attempts`。`/api/progress` に `instant`、エクスポートにも入れた。合格 1 問 +2 XP（`daily_stats.bonus_xp`）
+- UI: ナビ 7 項目（モバイルは `grid-cols-7`、390px で「瞬間英作文」が収まるのを確認）。ダッシュボードのカードは「今日やる問題 N 問」
+- 検証: tsc / vitest 41 / build（JS 798KB, gzip 244KB。+50KB は Drill/InstantPage/基本セット）。curl で items（不正レベルを捨てる）→ attempts（SRS・mastered・XP）→ progress → export。
+  Playwright で レベル一覧 → 基本セット → ラウンド通し（合格 / リピート自動進行 / 時間切れ / スキップ / サマリー）→ AI 生成（モック）→ 進捗 → ダッシュボード → 日本語 UI → モバイル幅
+- 未確認: 実機の Whisper 経由の秒数と採点、Aura でのお手本再生、生成の品質。デプロイ側は `npm run db:migrate:remote` で 0005 が要る

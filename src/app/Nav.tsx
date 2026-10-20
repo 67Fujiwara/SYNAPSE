@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Mic, Repeat, ClipboardCheck, TrendingUp, Settings } from 'lucide-react';
+import { Home, Mic, Repeat, Zap, ClipboardCheck, TrendingUp, Settings } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cx } from '@/lib/util';
 
@@ -7,6 +7,7 @@ const ITEMS = [
   { to: '/', key: 'nav.home', Icon: Home },
   { to: '/talk', key: 'nav.talk', Icon: Mic },
   { to: '/shadow', key: 'nav.shadow', Icon: Repeat },
+  { to: '/instant', key: 'nav.instant', Icon: Zap },
   { to: '/review', key: 'nav.review', Icon: ClipboardCheck },
   { to: '/progress', key: 'nav.progress', Icon: TrendingUp },
   { to: '/settings', key: 'nav.settings', Icon: Settings },
@@ -45,7 +46,7 @@ export function Nav() {
         </div>
       </header>
       {/* Bottom tabs (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-line bg-bg/90 backdrop-blur sm:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-line bg-bg/90 backdrop-blur sm:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {ITEMS.map(({ to, key, Icon }) => (
           <NavLink
             key={to}

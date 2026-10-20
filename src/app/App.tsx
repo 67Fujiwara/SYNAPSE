@@ -7,6 +7,7 @@ import { TalkPage } from '@/features/conversation/TalkPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { ShadowPage } from '@/features/shadowing/ShadowPage';
 import { ReviewPage } from '@/features/review/ReviewPage';
+import { InstantPage } from '@/features/instant/InstantPage';
 import { startSyncLoop } from '@/lib/sync';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/talk" element={<TalkPage />} />
           <Route path="/progress" element={<ProgressPage />} />
           <Route path="/shadow" element={<ShadowPage />} />
+          <Route path="/instant" element={<InstantPage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

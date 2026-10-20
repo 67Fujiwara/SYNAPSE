@@ -140,6 +140,27 @@ export function ProgressPage() {
       </Card>
 
       <Card>
+        <h2 className="mb-3 font-display text-base font-semibold">{t('progress.instant')}</h2>
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+          <Stat label={t('progress.instant.attempts')} value={p.instant.attempts} />
+          <Stat label={t('progress.instant.passRate')} value={`${p.instant.passRate}%`} />
+          <Stat label={t('progress.instant.latency')} value={p.instant.attempts ? `${p.instant.avgLatencySec.toFixed(1)}s` : '—'} sub={t('progress.instant.latency.sub')} />
+          <Stat label={t('progress.instant.mastered')} value={p.instant.mastered} />
+        </div>
+        <div className="mt-4 grid grid-cols-5 gap-2">
+          {p.instant.byLevel.map((l) => (
+            <div key={l.level} className="rounded-lg bg-surface-2/60 px-2 py-2 text-center">
+              <div className="text-[11px] uppercase tracking-wide text-ink-3">Lv{l.level}</div>
+              <div className="font-display text-lg font-semibold tabular-nums">
+                {l.mastered}
+                <span className="text-xs text-ink-3">/{l.total}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
         <h2 className="mb-3 font-display text-base font-semibold">{t('progress.milestones')}</h2>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {MILESTONES.map((m) => {

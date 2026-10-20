@@ -1,4 +1,4 @@
-import type { ChatEvent, ChatRequest, ExportBundle, NewShadowItem, ProgressResponse, RecordingMeta, Review, ReviewSummary, SessionPayload, Settings, ShadowItem, ShadowMode, StatsResponse, Turn, WordInfo } from '@shared/types';
+import type { ChatEvent, ChatRequest, ExportBundle, InstantItem, NewInstantItem, NewShadowItem, ProgressResponse, RecordingMeta, Review, ReviewSummary, SessionPayload, Settings, ShadowItem, ShadowMode, StatsResponse, Turn, WordInfo } from '@shared/types';
 import { localDate } from '../util';
 
 const TOKEN_KEY = 'synapse.token';
@@ -85,6 +85,14 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, res.statusText);
     return res.blob();
   },
+  // Phase 4
+  instantItems: (level?: number) => request<InstantItem[]>(`/api/instant/items${level ? `?level=${level}` : ''}`),
+  addInstantItems: (items: NewInstantItem[]) => request<InstantItem[]>('/api/instant/items', { method: 'POST', body: JSON.stringify({ items }) }),
+  generateInstant: (level: number, count = 10, focus?: string) =>
+    request<InstantItem[]>('/api/instant/generate', { method: 'POST', body: JSON.stringify({ level, count, focus }) }),
+  deleteInstantItem: (id: string) => request<{ ok: boolean }>(`/api/instant/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  instantAttempt: (a: { itemId: string; score: number; latencySec: number; heard: string; passed: boolean; timedOut: boolean }) =>
+    request<{ item: InstantItem; bonusXp: number }>('/api/instant/attempts', { method: 'POST', body: JSON.stringify(a) }),
   // Phase 3
   progress: () => request<ProgressResponse>('/api/progress'),
   missionDone: () => request<{ ok: boolean; newly: boolean; bonusXp: number }>('/api/missions/done', { method: 'POST', body: '{}' }),
