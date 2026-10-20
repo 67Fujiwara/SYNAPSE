@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage, Immersion, Mode, Session, SessionPayload, SttEngine, Turn } from '@shared/types';
+import type { ChatMessage, Immersion, Mode, Session, SessionPayload, SttEngine, TtsEngine, Turn } from '@shared/types';
 import { api, streamChat } from '@/lib/api/client';
 import type { Recognizer } from '@/lib/speech/types';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
 import { ServerRecognizer } from '@/lib/speech/server-recognizer';
-import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
+import { makeSynthesizer } from '@/lib/speech/factory';
 import { SentenceChunker } from '@/lib/speech/sentences';
 import { computeMetrics, computeXp } from '@/lib/metrics';
 import { uuid } from '@/lib/util';
@@ -46,6 +46,8 @@ export interface ConversationConfig {
   engine: SttEngine;
   /** Upload each of the learner's clips to R2 (server engine only). */
   saveRecordings: boolean;
+  ttsEngine: TtsEngine;
+  serverVoice: string;
 }
 
 export interface ConversationState {
@@ -103,7 +105,8 @@ export function useConversation(cfg: ConversationConfig) {
   useEffect(() => {
     if (recognizer instanceof ServerRecognizer) recognizer.setSilence(cfg.silenceSec * 1000);
   }, [recognizer, cfg.silenceSec]);
-  const synth = useMemo(() => new WebSpeechSynthesizer(), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const synth = useMemo(() => makeSynthesizer(cfg.ttsEngine, cfg.serverVoice), [cfg.ttsEngine]);
 
   const history = useRef<ChatMessage[]>([]);
   const turnsRef = useRef<DisplayTurn[]>([]);
@@ -212,7 +215,7 @@ export function useConversation(cfg: ConversationConfig) {
     const speakSentence = (s: string) => {
       if (gen !== ttsGeneration.current) return;
       if (phase() === 'thinking') setPhase('speaking');
-      ttsQueue.push(synth.speak(s, { rate: c.rate, voice: c.voice }));
+      ttsQueue.push(synth.speak(s, { rate: c.rate, voice: c.ttsEngine === 'server' ? c.serverVoice : c.voice }));
     };
 
     abort.current = new AbortController();
@@ -268,7 +271,8 @@ export function useConversation(cfg: ConversationConfig) {
     pushTurns();
     subtitle(turn);
     if (recognizer instanceof ServerRecognizer) recognizer.context = text;
-    await synth.speak(text, { rate: cfgRef.current.rate, voice: cfgRef.current.voice });
+    const c0 = cfgRef.current;
+    await synth.speak(text, { rate: c0.rate, voice: c0.ttsEngine === 'server' ? c0.serverVoice : c0.voice });
     if (gen === ttsGeneration.current && phase() === 'speaking') {
       lastAiEnd.current = Date.now();
       resumeListening();
@@ -340,7 +344,7 @@ export function useConversation(cfg: ConversationConfig) {
       synth.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recognizer]);
+  }, [recognizer, synth]);
 
   // ---- public actions -------------------------------------------------------
 

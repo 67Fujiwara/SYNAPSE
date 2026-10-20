@@ -4,7 +4,7 @@ import type { WordInfo } from '@shared/types';
 import { useT } from '@/i18n';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { api } from '@/lib/api/client';
-import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
+import { makeSynthesizer } from '@/lib/speech/factory';
 
 /** DeepL-style popover for one tapped word. Fetches from /api/word on open. */
 export function WordPopover({ word, sentence, onClose }: { word: string; sentence: string; onClose: () => void }) {
@@ -13,7 +13,7 @@ export function WordPopover({ word, sentence, onClose }: { word: string; sentenc
   const [info, setInfo] = useState<WordInfo | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const synth = useRef(new WebSpeechSynthesizer());
+  const synth = useRef(makeSynthesizer(settings.ttsEngine, settings.serverVoice));
 
   useEffect(() => {
     let alive = true;
@@ -30,7 +30,7 @@ export function WordPopover({ word, sentence, onClose }: { word: string; sentenc
 
   const say = (rate: number) => {
     synth.current.cancel();
-    void synth.current.speak(info?.word ?? word, { rate, voice: settings.voice });
+    void synth.current.speak(info?.word ?? word, { rate, voice: settings.ttsEngine === 'server' ? settings.serverVoice : settings.voice });
   };
 
   const save = async () => {

@@ -272,5 +272,17 @@
   "review.play": "自分の録音を再生",
   "review.noRecordings": "このセッションの録音はありません（設定の「自分の録音を保存する」をオンに）。",
   "shadow.headphones": "イヤホン推奨 — スピーカーの音をマイクが拾うと採点できません。",
-  "shadow.leak": "マイクがお手本の再生音を拾ったので、この回は採点しませんでした。イヤホンを使うか、Listen → Recall で練習してください。"
+  "shadow.leak": "マイクがお手本の再生音を拾ったので、この回は採点しませんでした。イヤホンを使うか、Listen → Recall で練習してください。",
+  "settings.ttsSection": "AI の声",
+  "settings.ttsEngine": "音声エンジン",
+  "settings.ttsEngine.help": "サーバーの声は自然で、ブラウザが再生するためマイクの音漏れをエコーキャンセルで消せます。ブラウザの声は OS 内蔵のもの。",
+  "settings.ttsEngine.server": "サーバー — 自然な声（Cloudflare）",
+  "settings.ttsEngine.browser": "ブラウザ — 内蔵の声",
+  "settings.serverVoice": "声",
+  "settings.serverVoice.help": "英語 40 声。「試聴」でいくつか聞き比べてください。",
+  "settings.voice.female": "女性",
+  "settings.voice.male": "男性",
+  "settings.preview": "試聴",
+  "settings.preview.cta": "サンプルを再生",
+  "settings.previewing": "再生中…"
 }

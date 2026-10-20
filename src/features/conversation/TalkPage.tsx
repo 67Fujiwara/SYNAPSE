@@ -59,8 +59,10 @@ export function TalkPage() {
   // Engine: the user's choice, or the server (Whisper) when this browser has no
   // speech recognition at all (iPhone Chrome) and the Worker offers it.
   const browserStt = useMemo(() => new WebSpeechRecognizer().supported, []);
-  const serverStt = useServerStt();
+  const { stt: serverStt, tts: serverTts } = useServerStt();
   const engine = settings.sttEngine === 'server' || (!browserStt && serverStt) ? 'server' : 'browser';
+  // Server TTS only when the Worker has Workers AI; otherwise the browser voice.
+  const ttsEngine = settings.ttsEngine === 'server' && serverTts ? 'server' : 'browser';
   // 'auto' = always-on mic on desktop, push-to-talk on iOS (recognition can't restart
   // without a gesture there). The server engine has its own silence detector, so it
   // works hands-free too.
@@ -71,6 +73,8 @@ export function TalkPage() {
     micMode,
     engine,
     saveRecordings: settings.saveRecordings,
+    ttsEngine,
+    serverVoice: settings.serverVoice,
     immersion: settings.immersion,
     scenario: mode === 'mywork' ? scenario : mission ? `Today's mission for the learner: "${mission}". Open by asking them to do it. Let them talk; then give one sentence of encouragement and keep the conversation going.` : undefined,
     model: settings.chatModel,

@@ -12,7 +12,7 @@ export class WebSpeechSynthesizer implements Synthesizer {
   private unlocked = false;
 
   constructor() {
-    this.supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    this.supported = typeof window !== 'undefined' && Boolean(window.speechSynthesis);
     if (this.supported) {
       // Chrome loads voices asynchronously; touching getVoices() kicks it off.
       window.speechSynthesis.getVoices();

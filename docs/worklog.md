@@ -121,3 +121,20 @@
   対策: 再生終了まで採点しない、確定待ちを `silenceSec` に合わせる、Overlap/Shadow に「イヤホン推奨」、
   聞こえた語数 ≥ 1.6× かつ余計な語 ≥ 半分 なら「再生音を拾った」として採点しない。
   根本対策の候補: TTS を Workers AI（Chrome が再生する音）に替えれば `echoCancellation` が効く（仕様 11 の TTS 差し替え）
+
+## 2026-10-20 — TTS を Workers AI（Deepgram Aura 2）に差し替え
+
+- 要望: YouTube の話者（若いアメリカ人女性エンジニア、落ち着いた自然な話し方）のような声。本人の声の複製はしない。
+  近い系統として米国女性・自然寄りの `luna` を既定に、設定で 40 声を試聴して選べるようにした
+- `/api/tts`: `@cf/deepgram/aura-2-en`（`encoding: 'mp3'`）。出力の型は workers-types では `string` だが実体が
+  ReadableStream / ArrayBuffer / base64 string / {audio} のどれでも受けるようにした（実機未確認）。R2 に `tts-cache/<sha256(voice|text)>.mp3` でキャッシュ
+- `ServerSynthesizer`: speak() ごとに即 fetch（先読み）、再生は必ず順番どおり。`cancel()` は世代カウンタで古いキューを無効化。
+  速度は `playbackRate`（Aura に rate は無い）。iOS 用 `unlock()` は無音 WAV を gesture 内で再生
+- カラオケはサーバー音声のとき `audio.duration` 比例で単語を進める（`boundary` が無いため）
+- 期待効果: speechSynthesis（OS 再生）と違い Chrome が再生する音なので、`echoCancellation: true` のマイクから消える → Overlap/Shadow のスピーカー漏れが減る
+- 検証: /api/tts を WAV でモックし、speechSynthesis を消したヘッドレス Chromium で 開幕の一言 → 聞く → 返答 3 文が順に TTS へ → 聞くに戻る、設定の試聴 を確認。
+  Aura 本体・音質・エコー消去の効き具合は実機で
+- **ハマりどころ**: iOS 解錠用に「データ部が 0 バイトの data-URI WAV」を再生していたら、その後に作った別の Audio 要素が
+  `playing` 直後に `pause`（位置 0）で止まり `ended` が来なかった（pause() も load() も呼ばれていないのに）。
+  ヘッドレス Chromium で再現。対策: **音声要素は 1 つを使い回し**、解錠はその要素で 100ms の本物の無音 WAV（実行時に生成）を鳴らす。
+  ついでに `ended` が来ない場合の保険タイマー（duration + 1.5s）を付けた

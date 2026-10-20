@@ -13,6 +13,7 @@ import { exportAll, importAll } from './db/transfer';
 import { findRecording, listRecordings, purgeRecordings, putRecording, recordingKey } from './db/recordings';
 import type { ExportBundle } from '../shared/types';
 import { looksHallucinated, lowConfidence } from '../shared/hallucination';
+import { AURA_VOICE_IDS } from '../shared/voices';
 import { deleteAll, getSession, listSessions, saveSession } from './db/sessions';
 import { getStats } from './db/stats';
 import { getSettings, putSettings } from './db/settings';
@@ -86,6 +87,7 @@ app.get('/api/health', async (c) => {
     keyHint: hint,
     hasWorkspace: Boolean(c.env.ANTHROPIC_WORKSPACE_ID),
     stt: Boolean(c.env.AI || c.env.STT_API_KEY),
+    tts: Boolean(c.env.AI),
   });
 });
 
@@ -174,6 +176,42 @@ app.post('/api/scenario', async (c) => {
     .trim();
   return c.json({ scenario: text });
 });
+
+// --- Text-to-speech (Deepgram Aura 2 on Workers AI), cached in R2 -------------------
+app.post('/api/tts', async (c) => {
+  if (!c.env.AI) return c.json({ error: 'Server TTS is not configured (Workers AI binding).' }, 501);
+  const { text, voice } = (await c.req.json()) as { text?: string; voice?: string };
+  const t = (text ?? '').trim().slice(0, 1000);
+  if (!t) return c.json({ error: 'text required' }, 400);
+  const speaker = voice && AURA_VOICE_IDS.has(voice) ? voice : 'luna';
+
+  const key = `tts-cache/${await sha256(`${speaker}|${t}`)}.mp3`;
+  if (c.env.BUCKET) {
+    try {
+      const hit = await c.env.BUCKET.get(key);
+      if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'audio/mpeg', 'X-TTS-Cache': 'hit', 'Cache-Control': 'private, max-age=86400' } });
+    } catch {
+      /* no bucket */
+    }
+  }
+
+  const out = (await c.env.AI.run('@cf/deepgram/aura-2-en', { text: t, speaker, encoding: 'mp3' } as never)) as unknown;
+  let bytes: ArrayBuffer;
+  if (out instanceof ReadableStream) bytes = await new Response(out).arrayBuffer();
+  else if (out instanceof ArrayBuffer) bytes = out;
+  else if (typeof out === 'string') bytes = Uint8Array.from(atob(out), (ch) => ch.charCodeAt(0)).buffer;
+  else if (out && typeof out === 'object' && 'audio' in out && typeof (out as { audio: unknown }).audio === 'string')
+    bytes = Uint8Array.from(atob((out as { audio: string }).audio), (ch) => ch.charCodeAt(0)).buffer;
+  else return c.json({ error: 'Unexpected TTS output' }, 502);
+
+  if (c.env.BUCKET) c.executionCtx.waitUntil(c.env.BUCKET.put(key, bytes, { httpMetadata: { contentType: 'audio/mpeg' } }).catch(() => {}));
+  return new Response(bytes, { headers: { 'Content-Type': 'audio/mpeg', 'X-TTS-Cache': 'miss', 'Cache-Control': 'private, max-age=86400' } });
+});
+
+async function sha256(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // --- Japanese subtitle for one AI line (immersion Medium/Low) ------------------
 app.post('/api/translate', async (c) => {

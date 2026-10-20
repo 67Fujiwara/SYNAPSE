@@ -8,6 +8,8 @@ export type UiLang = 'en' | 'ja';
 export type MicMode = 'auto' | 'continuous' | 'push';
 /** Where speech is recognized. 'server' records audio and sends it to /api/transcribe. */
 export type SttEngine = 'browser' | 'server';
+/** Where speech is synthesized. 'server' = Deepgram Aura on Workers AI, played by the browser. */
+export type TtsEngine = 'browser' | 'server';
 
 export interface Turn {
   id: string;
@@ -65,6 +67,8 @@ export interface Settings {
   immersion: Immersion;
   voice: string; // SpeechSynthesis voice name ('' = auto)
   rate: number; // TTS rate 0.7..1.3
+  ttsEngine: TtsEngine;
+  serverVoice: string; // Aura speaker id
   silenceSec: number; // auto-send after this much silence
   manualSend: boolean;
   dailyGoalMin: number;
@@ -84,6 +88,8 @@ export const DEFAULT_SETTINGS: Settings = {
   immersion: 'high',
   voice: '',
   rate: 1.0,
+  ttsEngine: 'server',
+  serverVoice: 'luna',
   silenceSec: 1.2,
   manualSend: false,
   dailyGoalMin: 10,

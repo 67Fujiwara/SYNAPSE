@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react';
 import { api, getToken } from '@/lib/api/client';
 
-let cached: boolean | null = null;
+let cached: { stt: boolean; tts: boolean } | null = null;
 
-/** Whether the Worker offers server-side speech-to-text (Workers AI or STT_API_KEY). Checked once per page load. */
-export function useServerStt(): boolean {
-  const [ok, setOk] = useState(cached ?? false);
+/** What the Worker offers (Workers AI speech-to-text / text-to-speech). Checked once per page load. */
+export function useServerStt(): { stt: boolean; tts: boolean } {
+  const [v, setV] = useState(cached ?? { stt: false, tts: true }); // optimistic for tts: falls back after the check
   useEffect(() => {
     if (cached !== null || !getToken()) return;
     api
       .health()
       .then((h) => {
-        cached = h.stt;
-        setOk(h.stt);
+        cached = { stt: h.stt, tts: h.tts };
+        setV(cached);
       })
       .catch(() => {});
   }, []);
-  return ok;
+  return v;
 }

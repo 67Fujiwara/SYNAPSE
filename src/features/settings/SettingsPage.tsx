@@ -6,7 +6,10 @@ import { useT } from '@/i18n';
 import { useSettings } from './SettingsProvider';
 import { api, getToken, setToken } from '@/lib/api/client';
 import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
-import type { Immersion, MicMode, SttEngine, UiLang } from '@shared/types';
+import type { Immersion, MicMode, SttEngine, TtsEngine, UiLang } from '@shared/types';
+import { AURA_VOICES } from '@shared/voices';
+import { makeSynthesizer } from '@/lib/speech/factory';
+import { Volume2 } from 'lucide-react';
 
 const CHAT_MODELS = ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'];
 const REVIEW_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
@@ -30,6 +33,18 @@ export function SettingsPage() {
   const [conn, setConn] = useState<string | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [sttNote, setSttNote] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  const preview = async () => {
+    setPreviewing(true);
+    const synth = makeSynthesizer(settings.ttsEngine, settings.serverVoice);
+    synth.unlock();
+    await synth.speak("Hey! Good to see you. So, how's your week going so far?", {
+      rate: settings.rate,
+      voice: settings.ttsEngine === 'server' ? settings.serverVoice : settings.voice,
+    });
+    setPreviewing(false);
+  };
 
   const checkStt = async (engine: SttEngine) => {
     update({ sttEngine: engine });
@@ -46,9 +61,9 @@ export function SettingsPage() {
     const synth = new WebSpeechSynthesizer();
     const load = () => setVoices(synth.voices());
     load();
-    if ('speechSynthesis' in window) window.speechSynthesis.addEventListener('voiceschanged', load);
+    window.speechSynthesis?.addEventListener('voiceschanged', load);
     return () => {
-      if ('speechSynthesis' in window) window.speechSynthesis.removeEventListener('voiceschanged', load);
+      window.speechSynthesis?.removeEventListener('voiceschanged', load);
     };
   }, []);
 
@@ -151,15 +166,48 @@ export function SettingsPage() {
       </Card>
 
       <Card className="divide-y divide-line/70">
-        <Row label={t('settings.voice')}>
-          <select value={settings.voice} onChange={(e) => update({ voice: e.target.value })} className="max-w-[320px]">
-            <option value="">{t('settings.voice.auto')}</option>
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.name} ({v.lang})
-              </option>
-            ))}
+        <h2 className="pb-1 font-display text-base font-semibold">{t('settings.ttsSection')}</h2>
+        <Row label={t('settings.ttsEngine')} help={t('settings.ttsEngine.help')}>
+          <select value={settings.ttsEngine} onChange={(e) => update({ ttsEngine: e.target.value as TtsEngine })} className="max-w-[320px]">
+            <option value="server">{t('settings.ttsEngine.server')}</option>
+            <option value="browser">{t('settings.ttsEngine.browser')}</option>
           </select>
+        </Row>
+        {settings.ttsEngine === 'server' ? (
+          <Row label={t('settings.serverVoice')} help={t('settings.serverVoice.help')}>
+            <select value={settings.serverVoice} onChange={(e) => update({ serverVoice: e.target.value })} className="max-w-[320px]">
+              <optgroup label={t('settings.voice.female')}>
+                {AURA_VOICES.filter((v) => v.gender === 'f').map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.id} · {v.accent} · {v.note}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label={t('settings.voice.male')}>
+                {AURA_VOICES.filter((v) => v.gender === 'm').map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.id} · {v.accent} · {v.note}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </Row>
+        ) : (
+          <Row label={t('settings.voice')}>
+            <select value={settings.voice} onChange={(e) => update({ voice: e.target.value })} className="max-w-[320px]">
+              <option value="">{t('settings.voice.auto')}</option>
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
+        <Row label={t('settings.preview')}>
+          <Button size="sm" variant="outline" disabled={previewing} onClick={() => void preview()}>
+            <Volume2 size={14} /> {previewing ? t('settings.previewing') : t('settings.preview.cta')}
+          </Button>
         </Row>
         <Row label={`${t('settings.rate')}: ${settings.rate.toFixed(2)}x`}>
           <input type="range" min={0.7} max={1.3} step={0.05} value={settings.rate} onChange={(e) => update({ rate: Number(e.target.value) })} />

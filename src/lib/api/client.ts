@@ -53,7 +53,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () =>
-    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'workspace' | 'error'; keyMessage: string; keyHint: string; hasWorkspace: boolean; stt: boolean }>(
+    request<{ ok: boolean; hasKey: boolean; keyStatus: 'ok' | 'missing' | 'invalid' | 'workspace' | 'error'; keyMessage: string; keyHint: string; hasWorkspace: boolean; stt: boolean; tts: boolean }>(
       '/api/health',
     ),
   stats: (days = 7) => request<StatsResponse>(`/api/stats?days=${days}`),
@@ -79,6 +79,12 @@ export const api = {
   deleteShadowItem: (id: string) => request<{ ok: boolean }>(`/api/shadow/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   shadowAttempt: (a: { itemId: string; score: number; wpm: number; speed: number; mode: ShadowMode; durationSec: number }) =>
     request<ShadowItem>('/api/shadow/attempts', { method: 'POST', body: JSON.stringify(a) }),
+  /** Synthesize one sentence on the Worker (Deepgram Aura). Returns an audio/mpeg blob. */
+  tts: async (text: string, voice: string): Promise<Blob> => {
+    const res = await fetch('/api/tts', { method: 'POST', headers: headers(), body: JSON.stringify({ text, voice }) });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return res.blob();
+  },
   // Phase 3
   progress: () => request<ProgressResponse>('/api/progress'),
   missionDone: () => request<{ ok: boolean; newly: boolean; bonusXp: number }>('/api/missions/done', { method: 'POST', body: '{}' }),

@@ -34,4 +34,6 @@ export interface Synthesizer {
   cancel(): void;
   voices(): SpeechSynthesisVoice[];
   readonly speaking: boolean;
+  /** Call inside a user gesture (iOS) before any later playback. */
+  unlock(): void;
 }

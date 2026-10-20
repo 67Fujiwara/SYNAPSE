@@ -45,7 +45,7 @@ export function Practice({
   const [saved, setSaved] = useState<ShadowItem | null>(null);
   const [showJa, setShowJa] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const k = useKaraoke();
+  const k = useKaraoke(settings.ttsEngine, settings.serverVoice);
 
   const words = useMemo(() => item.text.split(/\s+/).filter(Boolean), [item.text]);
   const refSec = useRef(0);

@@ -272,5 +272,17 @@
   "review.play": "Play your recording",
   "review.noRecordings": "No recordings for this session (enable “Save my recordings” in Settings).",
   "shadow.headphones": "Use earphones — the mic must not hear the playback.",
-  "shadow.leak": "The mic picked up the playback, so this attempt wasn't scored. Use earphones, or practice in Listen → Recall."
+  "shadow.leak": "The mic picked up the playback, so this attempt wasn't scored. Use earphones, or practice in Listen → Recall.",
+  "settings.ttsSection": "AI voice",
+  "settings.ttsEngine": "Voice engine",
+  "settings.ttsEngine.help": "Server voices are natural and played by the browser, so echo cancellation can remove them from the mic. Browser voices are the OS's built-in ones.",
+  "settings.ttsEngine.server": "Server — natural voices (Cloudflare)",
+  "settings.ttsEngine.browser": "Browser — built-in voices",
+  "settings.serverVoice": "Voice",
+  "settings.serverVoice.help": "40 English voices. Try a few with Preview.",
+  "settings.voice.female": "Female",
+  "settings.voice.male": "Male",
+  "settings.preview": "Preview",
+  "settings.preview.cta": "Play sample",
+  "settings.previewing": "Playing…"
 }
