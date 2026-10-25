@@ -117,6 +117,24 @@ export class WebSpeechRecognizer implements Recognizer {
     this.setListening(false);
   }
 
+  /** Abort the session (drops pending results) and start a fresh one if we were listening. */
+  discardClip() {
+    const want = this.wantListening;
+    this.stop();
+    if (want && !this.muted) this.start();
+  }
+
+  private muted = false;
+  setMuted(on: boolean) {
+    if (this.muted === on) return;
+    this.muted = on;
+    const want = this.wantListening || this.listening;
+    if (on) {
+      this.stop();
+      this.wantListening = want; // remember to resume
+    } else if (want) this.start();
+  }
+
   setKeepAlive(on: boolean) {
     this.keepAlive = on;
   }

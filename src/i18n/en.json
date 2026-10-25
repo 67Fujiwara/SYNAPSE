@@ -343,5 +343,7 @@
   "progress.instant.passRate": "Pass rate",
   "progress.instant.latency": "Time to first word",
   "progress.instant.latency.sub": "average on passes",
-  "progress.instant.mastered": "Automatic"
+  "progress.instant.mastered": "Automatic",
+  "instant.transcribing": "Transcribing…",
+  "instant.playing": "Playing the model answer…"
 }

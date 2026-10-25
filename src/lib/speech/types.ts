@@ -5,6 +5,16 @@ export interface RecognitionResult {
   final: string;
   /** Current unstable hypothesis (replaced on every event). */
   interim: string;
+  /** Server engine: Date.now() when speech was first heard in the clip this text came from.
+   *  Lets callers drop text from a clip that began before the current screen. */
+  clipStartedAt?: number;
+}
+
+export interface VadOptions {
+  /** RMS floor below which nothing counts as speech (default 0.02). */
+  minThreshold?: number;
+  /** Consecutive loud 50 ms frames before "speech started" (default 5). */
+  startFrames?: number;
 }
 
 export interface Recognizer {
@@ -18,6 +28,14 @@ export interface Recognizer {
   onSpeechEnd(cb: () => void): void;
   onError(cb: (code: string) => void): void;
   onStateChange(cb: (listening: boolean) => void): void;
+  /** Drop whatever is being heard right now without transcribing it; keep listening if keepAlive is on. */
+  discardClip(): void;
+  /** While muted the mic stays open but nothing is detected or sent (use while the app plays audio). */
+  setMuted(on: boolean): void;
+  /** Optional: mic level 0..1 relative to the speech threshold, ~20 times a second. */
+  onLevel?(cb: (level: number) => void): void;
+  /** Optional: tune the voice-activity detector. */
+  setVad?(opts: VadOptions): void;
 }
 
 export interface SpeakOptions {

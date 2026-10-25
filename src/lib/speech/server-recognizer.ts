@@ -1,4 +1,4 @@
-import type { RecognitionResult, Recognizer } from './types';
+import type { RecognitionResult, Recognizer, VadOptions } from './types';
 import { api } from '../api/client';
 
 /**
@@ -24,6 +24,10 @@ export class ServerRecognizer implements Recognizer {
   private loudMs = 0; // total time above threshold in this clip
   private loudRun = 0; // consecutive loud frames (to ignore clicks and bumps)
   private noiseFloor = 0.01;
+  private minThreshold = 0.02;
+  private startFrames = 5;
+  private muted = false;
+  private discard = false; // drop the current clip in finish()
   private keepAlive = false;
   private wantListening = false;
   private busy = 0; // uploads in flight
@@ -38,6 +42,7 @@ export class ServerRecognizer implements Recognizer {
   private speechEndCb: () => void = () => {};
   private errorCb: (code: string) => void = () => {};
   private stateCb: (listening: boolean) => void = () => {};
+  private levelCb: (level: number) => void = () => {};
 
   constructor(
     private silenceMs = 1200,
@@ -48,6 +53,30 @@ export class ServerRecognizer implements Recognizer {
 
   setSilence(ms: number) {
     this.silenceMs = ms;
+  }
+
+  setVad(opts: VadOptions) {
+    if (opts.minThreshold !== undefined) this.minThreshold = opts.minThreshold;
+    if (opts.startFrames !== undefined) this.startFrames = opts.startFrames;
+  }
+
+  /** End the current clip without sending it. A new clip starts if keepAlive is on. */
+  discardClip() {
+    if (!this.rec) return;
+    this.discard = true;
+    this.endClip();
+  }
+
+  setMuted(on: boolean) {
+    if (this.muted === on) return;
+    this.muted = on;
+    // Either way the clip in progress holds audio we don't want (our own playback, or its tail).
+    this.discardClip();
+    if (!on && this.wantListening && !this.rec) this.start();
+  }
+
+  onLevel(cb: (level: number) => void) {
+    this.levelCb = cb;
   }
 
   private pickMime(): string | undefined {
@@ -125,14 +154,19 @@ export class ServerRecognizer implements Recognizer {
       // Adaptive floor: follow quiet levels slowly, never above a sane cap.
       if (rms < this.noiseFloor) this.noiseFloor = this.noiseFloor * 0.9 + rms * 0.1;
       else this.noiseFloor = Math.min(0.03, this.noiseFloor * 0.995 + rms * 0.005);
-      const threshold = Math.max(0.02, this.noiseFloor * 4);
+      const threshold = Math.max(this.minThreshold, this.noiseFloor * 4);
+      this.levelCb(Math.min(1, rms / (threshold * 2)));
       const now = Date.now();
+      if (this.muted) {
+        this.loudRun = 0;
+        return;
+      }
       if (rms > threshold) {
         this.lastLoudAt = now;
         this.loudRun += 1;
         this.loudMs += 50;
-        // Speech starts only after ~250 ms of sustained sound (5 frames), not on a click or a bump.
-        if (!this.speechAt && this.loudRun >= 5) {
+        // Speech starts only after sustained sound (startFrames x 50 ms), not on a click or a bump.
+        if (!this.speechAt && this.loudRun >= this.startFrames) {
           this.speechAt = now;
           this.speechStartCb();
         }
@@ -158,6 +192,17 @@ export class ServerRecognizer implements Recognizer {
   private async finish(mime: string) {
     const blob = new Blob(this.chunks, { type: mime || 'audio/webm' });
     this.chunks = [];
+    const clipStartedAt = this.speechAt || this.startedAt;
+    if (this.discard) {
+      this.discard = false;
+      this.speechAt = 0;
+      this.loudMs = 0;
+      if (this.wantListening && this.keepAlive && !this.muted) this.start();
+      else if (this.wantListening && this.keepAlive) {
+        /* muted: a new clip starts on unmute */
+      } else this.releaseMic();
+      return;
+    }
     // Without VAD we trust the caller; with it we need real voiced time (>= 600 ms), not a cough.
     const hadSpeech = !this.analyser || (this.speechAt > 0 && this.loudMs >= 600);
     const next = () => {
@@ -170,7 +215,7 @@ export class ServerRecognizer implements Recognizer {
     try {
       const text = await api.transcribe(blob, this.context);
       this.onClip(blob, text);
-      if (text) this.resultCb({ final: text, interim: '' });
+      if (text) this.resultCb({ final: text, interim: '', clipStartedAt });
     } catch (e) {
       this.errorCb(e instanceof Error ? e.message : 'transcribe-failed');
     } finally {

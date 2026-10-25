@@ -343,5 +343,7 @@
   "progress.instant.passRate": "合格率",
   "progress.instant.latency": "最初の一語まで",
   "progress.instant.latency.sub": "合格時の平均",
-  "progress.instant.mastered": "自動化した文"
+  "progress.instant.mastered": "自動化した文",
+  "instant.transcribing": "文字起こし中…",
+  "instant.playing": "お手本を再生中…"
 }

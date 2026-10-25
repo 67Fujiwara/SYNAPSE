@@ -18,10 +18,12 @@ describe('scoreAnswer', () => {
     expect(r.score).toBe(100);
     expect(r.passed).toBe(true);
   });
-  it('picks the closest of model answer and alternatives', () => {
+  it('picks the closest of model answer and alternatives (ties go to the model answer)', () => {
     const r = scoreAnswer(sentence, 'I am not a morning person');
-    expect(r.ref).toBe('I am not a morning person.');
+    expect(r.ref).toBe("I'm not a morning person."); // contractions are equal, so the model answer wins
     expect(r.score).toBe(100);
+    const alt = scoreAnswer({ ...sentence, alternatives: ['I am no morning person.'] }, 'I am no morning person');
+    expect(alt.ref).toBe('I am no morning person.');
   });
   it('fails a different sentence', () => {
     const r = scoreAnswer(sentence, 'I like coffee a lot');
