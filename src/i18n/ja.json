@@ -345,5 +345,6 @@
   "progress.instant.latency.sub": "合格時の平均",
   "progress.instant.mastered": "自動化した文",
   "instant.transcribing": "文字起こし中…",
-  "instant.playing": "お手本を再生中…"
+  "instant.playing": "お手本を再生中…",
+  "instant.mic.ios": "iPhone の場合: 本体の 設定 → Chrome → マイク をオンにしてから、戻って「始める」を押し直してください。"
 }

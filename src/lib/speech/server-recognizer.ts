@@ -68,6 +68,8 @@ export class ServerRecognizer implements Recognizer {
   context = '';
   /** Last clip that was sent (for the "play what the mic heard" debug button). */
   lastClip: Blob | null = null;
+  /** DOMException name of the last getUserMedia failure (NotAllowedError, NotFoundError, …) for diagnostics. */
+  lastMicError: string | null = null;
   onClip: (blob: Blob, text: string) => void = () => {};
 
   private resultCb: (r: RecognitionResult) => void = () => {};
@@ -122,7 +124,8 @@ export class ServerRecognizer implements Recognizer {
     void (async () => {
       try {
         this.stream ??= await (takePrimedStream() ?? navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }));
-      } catch {
+      } catch (e) {
+        this.lastMicError = e instanceof Error ? `${e.name}${e.message ? ': ' + e.message : ''}` : String(e);
         this.wantListening = false;
         this.errorCb('not-allowed');
         return;

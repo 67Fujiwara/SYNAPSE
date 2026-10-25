@@ -345,5 +345,6 @@
   "progress.instant.latency.sub": "average on passes",
   "progress.instant.mastered": "Automatic",
   "instant.transcribing": "Transcribing…",
-  "instant.playing": "Playing the model answer…"
+  "instant.playing": "Playing the model answer…",
+  "instant.mic.ios": "On iPhone: open Settings → Chrome and turn Microphone on, then come back and tap Start again."
 }

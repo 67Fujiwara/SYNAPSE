@@ -12,6 +12,7 @@ import type { Recognizer, Synthesizer } from '@/lib/speech/types';
 import { scoreAnswer, type ScoreResult } from '@/lib/instant/score';
 import { countRepeats } from '@/lib/instant/repeat';
 import { cx } from '@/lib/util';
+import { isIOS } from '@/lib/speech/platform';
 import type { AttemptInput } from './useInstantDeck';
 
 type Phase = 'cue' | 'speaking' | 'result' | 'done';
@@ -234,7 +235,11 @@ export function Drill({
   useEffect(() => {
     recognizer.setKeepAlive(true);
     recognizer.onStateChange((on) => setListening(on));
-    recognizer.onError((code) => setError(code === 'not-allowed' ? t('talk.mic.denied') : code));
+    recognizer.onError((code) => {
+      if (code !== 'not-allowed') return setError(code);
+      const detail = recognizer instanceof ServerRecognizer ? recognizer.lastMicError : null;
+      setError([t('talk.mic.denied'), isIOS() ? t('instant.mic.ios') : '', detail ? `(${detail})` : ''].filter(Boolean).join(' '));
+    });
     recognizer.onLevel?.((v) => setLevel(v));
     // The server VAD needs ~300 ms of sound before it calls speech; don't bill that to the learner.
     const vadLead = server ? 300 : 0;
