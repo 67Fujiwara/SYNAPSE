@@ -5,9 +5,9 @@ import { INSTANT_MASTER_COUNT, type LevelSpec } from '@shared/instant';
 import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { useServerStt } from '@/features/conversation/useServerStt';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
 import { ServerRecognizer } from '@/lib/speech/server-recognizer';
-import { makeSynthesizer } from '@/lib/speech/factory';
 import type { Recognizer, Synthesizer } from '@/lib/speech/types';
 import { scoreAnswer, type ScoreResult } from '@/lib/instant/score';
 import { countRepeats } from '@/lib/instant/repeat';
@@ -40,6 +40,7 @@ export function Drill({
   items,
   spec,
   extraSec,
+  synth,
   onAttempt,
   onExit,
 }: {
@@ -47,13 +48,15 @@ export function Drill({
   spec: LevelSpec;
   /** Extra seconds added to the level's limit ("relaxed" switch). */
   extraSec: number;
+  /** Created and unlocked by the page inside the tap that started the round (iOS). */
+  synth: Synthesizer;
   onAttempt: (a: AttemptInput) => Promise<{ item: InstantItem; bonusXp: number }>;
   onExit: () => void;
 }) {
   const { t } = useT();
   const { settings } = useSettings();
   const limitSec = spec.limitSec + extraSec;
-  const server = settings.sttEngine === 'server';
+  const server = useDrillEngine() === 'server';
 
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>('cue');
@@ -95,7 +98,6 @@ export function Drill({
     r.setVad({ minThreshold: 0.03, startFrames: 6 });
     return r;
   }, [server, settings.silenceSec]);
-  const synth: Synthesizer = useMemo(() => makeSynthesizer(settings.ttsEngine, settings.serverVoice), [settings.ttsEngine, settings.serverVoice]);
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;
@@ -535,6 +537,14 @@ export function Drill({
       </div>
     </div>
   );
+}
+
+/** Same rule as the Talk page: the server engine when chosen, or when the browser has no recognition (iPhone Chrome). */
+export function useDrillEngine(): 'server' | 'browser' {
+  const { settings } = useSettings();
+  const { stt } = useServerStt();
+  const browserStt = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+  return settings.sttEngine === 'server' || (!browserStt && stt) ? 'server' : 'browser';
 }
 
 /** Tiny mic meter: fills past the midpoint when the sound is loud enough to count as speech. */

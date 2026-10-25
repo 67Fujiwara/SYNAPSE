@@ -10,6 +10,39 @@ import { api } from '../api/client';
  * browser recognizer. With keepAlive on, it starts a new clip after each one.
  * Works wherever MediaRecorder does (iOS Chrome/Safari record audio/mp4).
  */
+// iOS only lets getUserMedia / AudioContext start inside a tap. Screens that start the mic
+// later (after a state update or a fetch) call primeMic() in the tap and the recognizer
+// picks up the result here.
+let primedStream: Promise<MediaStream> | null = null;
+let primedCtx: AudioContext | null = null;
+
+export function primeMic() {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+  if (!primedStream) {
+    primedStream = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    primedStream.catch(() => {
+      primedStream = null;
+    });
+  }
+  try {
+    if (!primedCtx || primedCtx.state === 'closed') primedCtx = new AudioContext();
+    if (primedCtx.state === 'suspended') void primedCtx.resume();
+  } catch {
+    primedCtx = null;
+  }
+}
+
+function takePrimedStream(): Promise<MediaStream> | null {
+  const p = primedStream;
+  primedStream = null;
+  return p;
+}
+function takePrimedCtx(): AudioContext | null {
+  const c = primedCtx;
+  primedCtx = null;
+  return c;
+}
+
 export class ServerRecognizer implements Recognizer {
   readonly supported: boolean;
   private rec: MediaRecorder | null = null;
@@ -88,7 +121,7 @@ export class ServerRecognizer implements Recognizer {
     if (this.rec) return;
     void (async () => {
       try {
-        this.stream ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        this.stream ??= await (takePrimedStream() ?? navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }));
       } catch {
         this.wantListening = false;
         this.errorCb('not-allowed');
@@ -133,7 +166,7 @@ export class ServerRecognizer implements Recognizer {
   private startVad() {
     if (!this.stream) return;
     try {
-      this.ctx ??= new AudioContext();
+      this.ctx ??= takePrimedCtx() ?? new AudioContext();
       if (this.ctx.state === 'suspended') void this.ctx.resume();
       if (!this.analyser) {
         this.analyser = this.ctx.createAnalyser();

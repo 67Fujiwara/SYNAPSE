@@ -10,7 +10,11 @@ import { useT } from '@/i18n';
 import { starterItems } from '@/data/instantbank';
 import { cx } from '@/lib/util';
 import { useInstantDeck } from './useInstantDeck';
-import { Drill } from './Drill';
+import { Drill, useDrillEngine } from './Drill';
+import { useSettings } from '@/features/settings/SettingsProvider';
+import { makeSynthesizer } from '@/lib/speech/factory';
+import { primeMic } from '@/lib/speech/server-recognizer';
+import { useServerStt } from '@/features/conversation/useServerStt';
 
 const ROUND_SIZE = 10;
 const RELAX_KEY = 'synapse.instant.relaxed';
@@ -34,7 +38,12 @@ export function buildRound(due: InstantItem[], later: InstantItem[], size = ROUN
 
 export function InstantPage() {
   const { t } = useT();
+  const { settings } = useSettings();
   const deck = useInstantDeck();
+  const engine = useDrillEngine();
+  const { tts: serverTts } = useServerStt();
+  const ttsEngine = settings.ttsEngine === 'server' && serverTts ? 'server' : 'browser';
+  const synth = useMemo(() => makeSynthesizer(ttsEngine, settings.serverVoice), [ttsEngine, settings.serverVoice]);
   const [round, setRound] = useState<{ spec: LevelSpec; items: InstantItem[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // "gen:3" / "bank:1"
   const [note, setNote] = useState<string | null>(null);
@@ -55,6 +64,9 @@ export function InstantPage() {
 
   /** Start a round; a level with no drills yet gets its starter set first. */
   const start = async (spec: LevelSpec) => {
+    // Inside the tap, before any await: iOS only grants the mic and audio output from a user gesture.
+    if (engine === 'server') primeMic();
+    synth.unlock();
     let { due, later } = deck.forLevel(spec.level);
     if (due.length + later.length === 0) {
       setBusy(`bank:${spec.level}`);
@@ -120,7 +132,7 @@ export function InstantPage() {
             <X />
           </button>
         </div>
-        <Drill key={round.items.map((i) => i.id).join(',')} items={round.items} spec={round.spec} extraSec={relaxed ? RELAX_SEC : 0} onAttempt={deck.attempt} onExit={() => setRound(null)} />
+        <Drill key={round.items.map((i) => i.id).join(',')} items={round.items} spec={round.spec} extraSec={relaxed ? RELAX_SEC : 0} synth={synth} onAttempt={deck.attempt} onExit={() => setRound(null)} />
       </div>
     );
   }
