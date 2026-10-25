@@ -162,7 +162,7 @@ export function InstantPage() {
               <Card key={spec.level} className={cx('flex flex-col gap-3', isOpen && 'border-accent/50')}>
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-accent/15 font-display text-lg font-semibold text-accent">Lv{spec.level}</div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-[220px]">
                     <div className="flex flex-wrap items-baseline gap-x-2">
                       <span className="font-display text-base font-semibold">{t(`instant.level.${spec.level}`)}</span>
                       <span className="text-xs text-ink-3">
@@ -177,7 +177,8 @@ export function InstantPage() {
                       {t('instant.counts', { due: due.length, total: all.length, mastered })}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  {/* Phone width: the buttons drop to their own row instead of squeezing the text. */}
+                  <div className="flex basis-full items-center justify-end gap-2 sm:basis-auto">
                     <Button size="sm" variant="ghost" onClick={() => setOpen(isOpen ? null : spec.level)} aria-expanded={isOpen}>
                       <Plus size={14} /> {t('instant.more')}
                     </Button>
