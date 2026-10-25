@@ -34,6 +34,58 @@ export function SettingsPage() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [sttNote, setSttNote] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [micTest, setMicTest] = useState<string | null>(null);
+
+  /** Ask for the microphone right here, inside the tap, and report exactly what the browser said. */
+  const testMic = async () => {
+    const env = [
+      `secure=${String(window.isSecureContext)}`,
+      `mediaDevices=${String(Boolean(navigator.mediaDevices?.getUserMedia))}`,
+      `MediaRecorder=${String(typeof MediaRecorder !== 'undefined')}`,
+      `SpeechRecognition=${String(Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition))}`,
+    ];
+    setMicTest(t('settings.micTest.asking'));
+    let perm = '';
+    try {
+      const st = await navigator.permissions?.query({ name: 'microphone' as PermissionName });
+      if (st) perm = `permission=${st.state}`;
+    } catch {
+      /* not supported */
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const track = stream.getAudioTracks()[0];
+      const label = track?.label || '(no label)';
+      // Listen for two seconds so the user sees the level move.
+      const ctx = new AudioContext();
+      await ctx.resume();
+      const an = ctx.createAnalyser();
+      an.fftSize = 1024;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Float32Array(an.fftSize);
+      let peak = 0;
+      const t0 = Date.now();
+      await new Promise<void>((res) => {
+        const id = window.setInterval(() => {
+          an.getFloatTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+          peak = Math.max(peak, Math.sqrt(sum / buf.length));
+          setMicTest(`${t('settings.micTest.listening')} ${Math.round(peak * 1000) / 10}`);
+          if (Date.now() - t0 > 2500) {
+            window.clearInterval(id);
+            res();
+          }
+        }, 100);
+      });
+      stream.getTracks().forEach((x) => x.stop());
+      void ctx.close();
+      setMicTest(`${t('settings.micTest.ok')} ${label} · peak ${Math.round(peak * 1000) / 10} · ${[perm, ...env].filter(Boolean).join(' ')}`);
+    } catch (e) {
+      const name = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      setMicTest(`${t('settings.micTest.fail')} ${name} · ${[perm, ...env].filter(Boolean).join(' ')} · ${navigator.userAgent}`);
+    }
+  };
 
   const preview = async () => {
     setPreviewing(true);
@@ -239,6 +291,12 @@ export function SettingsPage() {
         <Row label={t('settings.debugClips')} help={t('settings.debugClips.help')}>
           <Switch checked={settings.debugClips} onChange={(v) => update({ debugClips: v })} label={t('settings.debugClips')} />
         </Row>
+        <Row label={t('settings.micTest')} help={t('settings.micTest.help')}>
+          <Button size="sm" variant="outline" onClick={() => void testMic()}>
+            {t('settings.micTest.run')}
+          </Button>
+        </Row>
+        {micTest && <div className="break-all pt-2 text-xs text-ink-2">{micTest}</div>}
       </Card>
 
       <Card className="divide-y divide-line/70">

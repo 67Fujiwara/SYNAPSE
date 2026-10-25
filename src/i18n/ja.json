@@ -346,5 +346,12 @@
   "progress.instant.mastered": "自動化した文",
   "instant.transcribing": "文字起こし中…",
   "instant.playing": "お手本を再生中…",
-  "instant.mic.ios": "iPhone の場合: 本体の 設定 → Chrome → マイク をオンにしてから、戻って「始める」を押し直してください。"
+  "instant.mic.ios": "iPhone の場合: 本体の 設定 → Chrome → マイク をオンにしてから、戻って「始める」を押し直してください。",
+  "settings.micTest": "マイクのテスト",
+  "settings.micTest.help": "この場でマイクを要求し、ブラウザの返事をそのまま表示します。",
+  "settings.micTest.run": "マイクを試す",
+  "settings.micTest.asking": "マイクを要求しています…",
+  "settings.micTest.listening": "聞いています… 何か話してください。レベル:",
+  "settings.micTest.ok": "OK —",
+  "settings.micTest.fail": "失敗 —"
 }

@@ -346,5 +346,12 @@
   "progress.instant.mastered": "Automatic",
   "instant.transcribing": "Transcribing…",
   "instant.playing": "Playing the model answer…",
-  "instant.mic.ios": "On iPhone: open Settings → Chrome and turn Microphone on, then come back and tap Start again."
+  "instant.mic.ios": "On iPhone: open Settings → Chrome and turn Microphone on, then come back and tap Start again.",
+  "settings.micTest": "Microphone test",
+  "settings.micTest.help": "Asks for the mic right here and shows exactly what the browser answered.",
+  "settings.micTest.run": "Test mic",
+  "settings.micTest.asking": "Asking for the microphone…",
+  "settings.micTest.listening": "Listening… say something. Level:",
+  "settings.micTest.ok": "OK —",
+  "settings.micTest.fail": "Failed —"
 }
