@@ -2,6 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
 import { api } from '@/lib/api/client';
 import type { TtsEngine } from '@shared/types';
+import { frameRms, voicedSegments, wordAt, wordStarts } from '@/lib/speech/wordtiming';
+
+let decoder: AudioContext | null = null;
+
+/** Media-time start of each word, from the decoded audio; null when the browser cannot decode it. */
+async function wordTimeline(blob: Blob, words: string[]): Promise<number[] | null> {
+  try {
+    decoder ??= new AudioContext();
+    const buf = await decoder.decodeAudioData(await blob.arrayBuffer());
+    const ch = buf.getChannelData(0);
+    const segs = voicedSegments(frameRms(ch, buf.sampleRate));
+    return wordStarts(words, segs, buf.duration);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Read a sentence aloud and report which word is being spoken, using the
@@ -32,34 +48,51 @@ export function useKaraoke(engine: TtsEngine = 'browser', serverVoice = 'thalia'
     setWordIndex(-1);
   }, []);
 
-  /** Server voice: play the mp3 and advance the highlight by character share of the real duration. */
+  /**
+   * Server voice: decode the clip to find where the voice actually is (leading silence, pauses), lay the
+   * words over that voiced time by syllable weight, and move the highlight from the element's real
+   * playback position (so speed changes and buffering can't drift it).
+   */
   const speakServer = useCallback(
     (text: string, rate: number): Promise<number> =>
       new Promise((resolve) => {
         const words = text.split(/\s+/).filter(Boolean);
-        const total = text.replace(/\s+/g, '').length || 1;
         api
           .tts(text, serverVoice)
-          .then((blob) => {
+          .then(async (blob) => {
             const url = URL.createObjectURL(blob);
             const a = new Audio(url);
             a.playbackRate = rate;
             a.style.display = 'none';
             document.body.appendChild(a); // keep it alive while playing (see ServerSynthesizer)
             audio.current = a;
+            const starts = await wordTimeline(blob, words);
             const t0 = performance.now();
+            let raf = 0;
+            const follow = () => {
+              if (audio.current !== a) return;
+              const idx = starts ? wordAt(starts, a.currentTime) : -1;
+              setWordIndex(Math.max(0, idx));
+              raf = requestAnimationFrame(follow);
+            };
             a.onplay = () => {
               setSpeaking(true);
               setWordIndex(0);
-              const durMs = ((Number.isFinite(a.duration) ? a.duration : text.length * 0.06) / rate) * 1000;
-              let acc = 0;
-              words.forEach((w, i) => {
-                acc += w.length;
-                timers.current.push(window.setTimeout(() => setWordIndex(Math.min(i + 1, words.length - 1)), (acc / total) * durMs * 0.95));
-              });
+              if (starts) raf = requestAnimationFrame(follow);
+              else {
+                // Could not decode: fall back to character share of the duration.
+                const total = text.replace(/\s+/g, '').length || 1;
+                const durMs = ((Number.isFinite(a.duration) ? a.duration : text.length * 0.06) / rate) * 1000;
+                let acc = 0;
+                words.forEach((w, i) => {
+                  acc += w.length;
+                  timers.current.push(window.setTimeout(() => setWordIndex(Math.min(i + 1, words.length - 1)), (acc / total) * durMs * 0.95));
+                });
+              }
             };
             const done = () => {
               clear();
+              cancelAnimationFrame(raf);
               URL.revokeObjectURL(url);
               lastDuration.current = (performance.now() - t0) / 1000;
               setSpeaking(false);

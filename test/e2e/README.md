@@ -11,6 +11,7 @@ node test/e2e/conv_noise.mjs       /tmp/shots /tmp/bursts.wav $TOKEN   # 常時�
 node test/e2e/conv_push_server.mjs /tmp/shots /tmp/bursts.wav $TOKEN   # iPhone の本番経路: タップして話す + Whisper（偽マイク）
 node test/e2e/instant_server.mjs   /tmp/shots /tmp/bursts.wav $TOKEN   # 瞬間英作文: Whisper 経路（リピート自動進行・ノイズで時計が戻る・「次へ」の漏れ無し）
 node test/e2e/instant.mjs          /tmp/shots $TOKEN                   # 瞬間英作文: ブラウザ認識経路
+node test/e2e/karaoke.mjs          /tmp/shots $TOKEN                   # シャドーイングのカラオケ: 強調が音声（無音・間）に追従するか
 ```
 
 `personas*.mjs` は第 3 引数に場面名（カンマ区切り）を渡すと絞れる。AI の API はすべてモック（鍵不要）。

@@ -237,3 +237,15 @@
 - ハーネスの落とし穴: Playwright の click は disabled なボタンが有効になるまで待つ（「考え中にタップしても無視」を試すときは `isDisabled()` を見る）。
   待ち合わせは「user 行が増える → phase が listening/ready に戻る」の 2 段で取る（即時のモックだと thinking/speaking を取り逃す）
 - 検証: vitest 52 / tsc / build（gzip 249KB）。personas 91/91、personas2 33/33、conv_noise、conv_push_server、instant_server、instant すべて通過
+
+## 2026-11-01 — シャドーイングのカラオケ強調が音声とずれる（サーバー音声）
+
+- 実機: 青い強調が話しているタイミングと合わない。Aura の mp3 には単語の時刻が無いので、文字数の割合 × 全長で進めていた。
+  先頭の無音（Aura は 100〜300ms ある）と句読点の間がそのまま「ずれ」になり、速い単語・長い単語の差も出ない
+- 対策 `src/lib/speech/wordtiming.ts`（純関数・テスト付き）: 受け取った音声を `decodeAudioData` で復号 → 10ms の RMS →
+  最大値の 8% 以上を「声」、120ms 以下の切れ目は繋ぐ → 声の区間（先頭無音と間が除かれる）に単語を **音節数 + 0.6 の重み**で並べる。
+  句読点で切った句の数と声の区間の数が一致すれば句ごとに区間を割り当てる。強調は `requestAnimationFrame` で
+  `audio.currentTime` を見て動かす（タイマーではないので速度変更やバッファリングでずれない）。復号できなければ従来の方式に戻る
+- 音節: 母音群 + 子音の後の y（try / happy）、語末の silent e を引く（-le は残す）
+- 検証: 無音 0.4s → 声 0.5s → 間 0.3s → 声 1.2s の WAV を /api/tts のモックにして、無音中は "Not"、1 句目は Not/bad.、間は bad.、
+  2 句目の頭で Just、終盤は Monday. になることを確認（`test/e2e/karaoke.mjs`）。実機の Aura でも同じ理屈で合うはず
