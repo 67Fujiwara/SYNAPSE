@@ -249,7 +249,7 @@ export function TalkPage() {
   const canInterrupt = state.phase === 'speaking' || state.phase === 'thinking';
 
   return (
-    <div className="flex h-[100dvh] flex-col" onClick={canInterrupt ? conv.interrupt : undefined}>
+    <div className="flex h-[100dvh] flex-col" data-phase={state.phase} data-turns={state.turns.length} onClick={canInterrupt ? conv.interrupt : undefined}>
       <div className="flex items-center justify-between px-4 py-3 text-xs text-ink-3">
         <span className="uppercase tracking-wider">{t(`talk.mode.${mode}`)}</span>
         <span className="tabular-nums">

@@ -40,6 +40,9 @@ export interface Recognizer {
   onStateChange(cb: (listening: boolean) => void): void;
   /** Drop whatever is being heard right now without transcribing it; keep listening if keepAlive is on. */
   discardClip(): void;
+  /** stop() and give the microphone back to the OS. stop() alone keeps the mic open between turns
+   *  (no re-permission on iOS, no audio-processing restart) — call this when the screen is done. */
+  release(): void;
   /** While muted the mic stays open but nothing is detected or sent (use while the app plays audio). */
   setMuted(on: boolean): void;
   /** Optional: mic level 0..1 relative to the speech threshold, ~20 times a second. */

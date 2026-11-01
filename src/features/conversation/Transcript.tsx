@@ -34,7 +34,7 @@ export function Transcript({
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto px-5 py-6">
       {empty && <p className="m-auto text-center text-ink-3">{placeholder}</p>}
       {turns.map((t) => (
-        <div key={t.id} className={cx('transcript-text', t.role === 'ai' ? 'text-ink font-medium' : 'text-ink-2 text-[0.9em]')}>
+        <div key={t.id} data-role={t.role} data-text={t.text} className={cx('transcript-text', t.role === 'ai' ? 'text-ink font-medium' : 'text-ink-2 text-[0.9em]')}>
           <span className="mr-2 inline-block w-7 text-xs uppercase tracking-wider text-ink-3 align-middle">{t.role === 'ai' ? 'AI' : 'You'}</span>
           {t.role === 'ai' && !t.streaming && onWord ? <Tappable text={t.text} onWord={onWord} /> : t.text}
           {t.streaming && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-pulse bg-accent align-middle" />}

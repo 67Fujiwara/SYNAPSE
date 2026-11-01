@@ -123,6 +123,11 @@ iPhone では Safari でその URL を開き、「共有 → ホーム画面に�
 
 ---
 
+## ブラウザ通しテスト（10 人・あらゆる場面）
+
+`test/e2e/`（使い方は `test/e2e/README.md`）。会話 13 場面 + 他画面 6 場面 + iPhone の本番経路 + ノイズ退避 + 瞬間英作文 2 経路。
+AI の API はモックなので鍵無しで回る。実機でしか分からないのは Whisper の精度・Aura の音質・iPhone の権限まわり。
+
 ## 動作確認チェックリスト（Phase 4）
 
 - ✅ `/api/instant/items` は同じレベルの同じ答えを重複登録せず、1〜5 以外のレベルを捨てる。`/api/instant/attempts` で合格は間隔が伸び、速い合格（レベルの `fastSec` 以内）で `masteredCount` が増え、失敗で 0 に戻る。合格で +2 XP

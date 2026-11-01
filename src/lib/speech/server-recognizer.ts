@@ -146,6 +146,7 @@ export class ServerRecognizer implements Recognizer {
 
   start() {
     this.wantListening = true;
+    this.released = false;
     if (this.rec) return;
     void (async () => {
       try {
@@ -289,13 +290,18 @@ export class ServerRecognizer implements Recognizer {
       if (this.wantListening && this.keepAlive) this.start();
       else this.releaseMic();
     };
-    if (!hadSpeech || Date.now() - this.startedAt < 400 || blob.size < 1000) return next();
+    if (!hadSpeech || Date.now() - this.startedAt < 400 || blob.size < 1000) {
+      // Nothing worth sending: still tell the screen, or "tap, say nothing, tap" would wait for a transcript forever.
+      this.onClip(blob, '');
+      this.resultCb({ final: '', interim: '', clipStartedAt });
+      return next();
+    }
     this.busy += 1;
     this.lastClip = blob;
     try {
       const text = await api.transcribe(blob, this.context, this.strict);
       this.onClip(blob, text);
-      if (text) this.resultCb({ final: text, interim: '', clipStartedAt });
+      this.resultCb({ final: text, interim: '', clipStartedAt }); // empty text = the server heard nothing
     } catch (e) {
       this.errorCb(e instanceof Error ? e.message : 'transcribe-failed');
     } finally {
@@ -304,8 +310,16 @@ export class ServerRecognizer implements Recognizer {
     }
   }
 
+  /** Give the microphone back (end of a session / screen). */
+  release() {
+    this.stop();
+    this.released = true;
+    this.releaseMic();
+  }
+  private released = false;
+
   private releaseMic() {
-    if (this.rec || this.busy > 0 || this.wantListening) return;
+    if (this.rec || this.busy > 0 || this.wantListening || !this.released) return;
     this.stopVad();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;

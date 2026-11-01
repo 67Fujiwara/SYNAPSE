@@ -195,7 +195,8 @@ export function useConversation(cfg: ConversationConfig) {
     const startedAt = draftStart.current ?? new Date().toISOString();
     draftStart.current = null;
     const endedAt = new Date().toISOString();
-    setState((s) => ({ ...s, draft: '', interim: '', transcribing: false }));
+    // A fresh turn clears the previous one's error (a failed reply, a recognition hiccup).
+    setState((s) => ({ ...s, draft: '', interim: '', transcribing: false, error: null }));
 
     const userTurn: DisplayTurn = { id: uuid(), role: 'user', text, startedAt, endedAt };
     turnsRef.current.push(userTurn);
@@ -304,6 +305,15 @@ export function useConversation(cfg: ConversationConfig) {
   useEffect(() => {
     recognizer.onResult(({ final, interim }) => {
       if (phase() !== 'listening') return; // ignore echoes of our own TTS
+      if (!final && !interim && cfgRef.current.engine === 'server') {
+        // The clip held no speech (or the server dropped it): nothing to send.
+        setState((s) => ({ ...s, transcribing: false, userSpeaking: false }));
+        if (micMode() === 'push' && !draftRef.current) {
+          recognizer.stop();
+          setPhase('ready');
+        }
+        return;
+      }
       if (final) {
         setState((s) => ({ ...s, transcribing: false }));
         if (!draftRef.current) {
@@ -361,7 +371,7 @@ export function useConversation(cfg: ConversationConfig) {
       };
     }
     return () => {
-      recognizer.stop();
+      recognizer.release();
       synth.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -445,12 +455,21 @@ export function useConversation(cfg: ConversationConfig) {
     ttsGeneration.current += 1;
     synth.cancel();
     abort.current?.abort();
-    recognizer.stop();
+    recognizer.release();
     if (speechStartAt.current) {
       speakingMs.current += Date.now() - speechStartAt.current;
       speechStartAt.current = null;
     }
     setPhase('ended');
+
+    // Words recognized but not yet sent (the silence timer had not fired) still belong to the session.
+    const leftover = draftRef.current.trim();
+    if (leftover) {
+      turnsRef.current.push({ id: uuid(), role: 'user', text: leftover, startedAt: draftStart.current ?? new Date().toISOString(), endedAt: new Date().toISOString() });
+      draftRef.current = '';
+      draftStart.current = null;
+      setState((s) => ({ ...s, draft: '', interim: '', turns: [...turnsRef.current] }));
+    }
 
     const turns: Turn[] = turnsRef.current
       .filter((t) => t.text.trim())

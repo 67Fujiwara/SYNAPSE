@@ -117,6 +117,10 @@ export class WebSpeechRecognizer implements Recognizer {
     this.setListening(false);
   }
 
+  release() {
+    this.stop();
+  }
+
   /** Abort the session (drops pending results) and start a fresh one if we were listening. */
   discardClip() {
     const want = this.wantListening;

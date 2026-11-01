@@ -218,7 +218,7 @@ export function Drill({
     if (idx + 1 >= items.length) {
       clearTimers();
       recognizer.setKeepAlive(false);
-      recognizer.stop();
+      recognizer.release();
       setPhaseBoth('done');
       return;
     }
@@ -308,7 +308,7 @@ export function Drill({
     return () => {
       clearTimers();
       recognizer.setKeepAlive(false);
-      recognizer.stop();
+      recognizer.release();
       synth.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

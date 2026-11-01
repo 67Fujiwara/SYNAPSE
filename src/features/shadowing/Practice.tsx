@@ -119,6 +119,12 @@ export function Practice({
 
   useEffect(() => {
     recognizer.onResult(({ final, interim }) => {
+      if (!final && !interim && settings.sttEngine === 'server') {
+        // Clip without speech: stop waiting instead of showing "scoring…" forever.
+        setScoring(false);
+        setListening(false);
+        return;
+      }
       if (final) {
         heardRef.current = (heardRef.current + ' ' + final).trim();
         setHeard(heardRef.current);
@@ -136,10 +142,10 @@ export function Practice({
     });
     recognizer.onStateChange((on) => setListening(on));
     return () => {
-      recognizer.stop();
+      recognizer.release();
       if (stopTimer.current) window.clearTimeout(stopTimer.current);
     };
-  }, [recognizer, finishAttempt, t, settings.silenceSec]);
+  }, [recognizer, finishAttempt, t, settings.silenceSec, settings.sttEngine]);
 
   const play = async () => {
     setResult(null);
