@@ -359,5 +359,7 @@
   "settings.micSensitivity.high": "高（静かな部屋・小さい声）",
   "settings.micSensitivity.normal": "普通",
   "settings.micSensitivity.low": "低（騒がしい場所）",
-  "talk.noise.forcedPush": "マイクがノイズを拾い続けたので、この回は「タップして話す」に切り替えました。話すときにマイクをタップしてください。屋外では 設定 → マイク感度 を「低」にすると改善します。"
+  "talk.noise.forcedPush": "マイクがノイズを拾い続けたので、この回は「タップして話す」に切り替えました。話すときにマイクをタップしてください。屋外では 設定 → マイク感度 を「低」にすると改善します。",
+  "instant.repeat.ready": "マイク ON — どうぞ",
+  "instant.repeat.micOff": "マイクが止まっています — 「聞く」を押してから言ってください"
 }

@@ -133,7 +133,12 @@ export class ServerRecognizer implements Recognizer {
     this.muted = on;
     // Either way the clip in progress holds audio we don't want (our own playback, or its tail).
     this.discardClip();
-    if (!on && this.wantListening && !this.rec) this.start();
+    if (!on) {
+      // Start the floor afresh: whatever leaked through during playback is not the room.
+      this.hist.fill(-1);
+      this.histPos = 0;
+      if (this.wantListening && !this.rec) this.start();
+    }
   }
 
   onLevel(cb: (level: number) => void) {
@@ -218,8 +223,12 @@ export class ServerRecognizer implements Recognizer {
       // Noise floor = the 20th percentile of the last two seconds. Speech has pauses, so it leaves the
       // percentile alone; a street or a train fills the window and lifts it (then speech must stand floorMult
       // above it). A smoothed average would learn the voice itself and climb out of its own reach.
-      this.hist[this.histPos] = rms;
-      this.histPos = (this.histPos + 1) % FLOOR_WINDOW;
+      // Muted = the app is playing audio the mic can hear. That must not teach the floor, or the
+      // threshold sits at playback level for the next two seconds and swallows the learner's reply.
+      if (!this.muted) {
+        this.hist[this.histPos] = rms;
+        this.histPos = (this.histPos + 1) % FLOOR_WINDOW;
+      }
       const sorted = this.hist.filter((v) => v >= 0).sort((a, b) => a - b);
       const p20 = sorted.length ? sorted[Math.floor(sorted.length * 0.2)] : rms;
       this.noiseFloor = Math.min(this.floorCap, p20);

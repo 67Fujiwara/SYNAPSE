@@ -126,6 +126,7 @@ export function Drill({
         await synth.speak(text, { rate: settings.rate, voice: settings.voice });
       } finally {
         recognizer.setMuted(false);
+        recognizer.start(); // idempotent; belt and braces after the unmute
         playingRef.current = false;
         setPlaying(false);
       }
@@ -401,6 +402,7 @@ export function Drill({
         </span>
       )}
       {mic === 'transcribing' && <span className="animate-pulse text-ink-2">{t('instant.transcribing')}</span>}
+      {mic === 'idle' && phase === 'result' && <span className="text-ink-3">{listening ? t('instant.repeat.ready') : t('instant.repeat.micOff')}</span>}
       {mic === 'idle' && phase === 'cue' && (
         <span className="flex items-center gap-1.5 tabular-nums text-ink-2">
           <Clock size={14} /> {remaining.toFixed(1)}s

@@ -359,5 +359,7 @@
   "settings.micSensitivity.high": "High (quiet room, soft voice)",
   "settings.micSensitivity.normal": "Normal",
   "settings.micSensitivity.low": "Low (noisy place)",
-  "talk.noise.forcedPush": "The mic kept hearing noise, so this session switched to tap-to-talk. Tap the mic when you want to speak. For outdoors, set Settings → Mic sensitivity to Low."
+  "talk.noise.forcedPush": "The mic kept hearing noise, so this session switched to tap-to-talk. Tap the mic when you want to speak. For outdoors, set Settings → Mic sensitivity to Low.",
+  "instant.repeat.ready": "Mic on — say it now",
+  "instant.repeat.micOff": "Mic is off — tap Listen, then say it"
 }
