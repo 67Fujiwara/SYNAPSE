@@ -7,7 +7,7 @@ import { useT } from '@/i18n';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useServerStt } from '@/features/conversation/useServerStt';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
-import { ServerRecognizer } from '@/lib/speech/server-recognizer';
+import { ServerRecognizer, VAD_PRESETS } from '@/lib/speech/server-recognizer';
 import type { Recognizer, Synthesizer } from '@/lib/speech/types';
 import { scoreAnswer, type ScoreResult } from '@/lib/instant/score';
 import { countRepeats } from '@/lib/instant/repeat';
@@ -95,10 +95,11 @@ export function Drill({
   const recognizer: Recognizer = useMemo(() => {
     if (!server) return new WebSpeechRecognizer('en-US');
     const r = new ServerRecognizer(Math.round(Math.max(0.8, settings.silenceSec) * 1000));
-    // Stricter than the conversation: a drill room is quiet and a false start costs the clock.
-    r.setVad({ minThreshold: 0.03, startFrames: 6 });
+    // The user's sensitivity preset, but never looser than the drill's own floor: a false start costs the clock.
+    const p = VAD_PRESETS[settings.micSensitivity];
+    r.setVad({ ...p, minThreshold: Math.max(0.03, p.minThreshold), startFrames: Math.max(6, p.startFrames) });
     return r;
-  }, [server, settings.silenceSec]);
+  }, [server, settings.silenceSec, settings.micSensitivity]);
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;

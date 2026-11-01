@@ -116,10 +116,11 @@ export const api = {
     return URL.createObjectURL(await res.blob());
   },
   /** Upload a recorded clip; resolves to the transcript. */
-  transcribe: async (blob: Blob, context = ''): Promise<string> => {
+  transcribe: async (blob: Blob, context = '', noisy = false): Promise<string> => {
     const form = new FormData();
     form.append('audio', blob, 'speech');
     if (context) form.append('context', context);
+    if (noisy) form.append('noisy', '1');
     const res = await fetch('/api/transcribe', { method: 'POST', headers: headers(false), body: form });
     if (!res.ok) {
       let msg = res.statusText;

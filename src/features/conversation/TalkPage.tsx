@@ -71,6 +71,7 @@ export function TalkPage() {
   const conv = useConversation({
     mode,
     micMode,
+    micSensitivity: settings.micSensitivity,
     engine,
     saveRecordings: settings.saveRecordings,
     ttsEngine,
@@ -243,7 +244,7 @@ export function TalkPage() {
           : state.phase === 'speaking'
             ? t('talk.speaking')
             : t('talk.paused');
-  const push = micMode === 'push';
+  const push = micMode === 'push' || state.forcedPush;
   const errorText = state.error === 'mic-denied' ? t('talk.mic.denied') : state.error;
   const canInterrupt = state.phase === 'speaking' || state.phase === 'thinking';
 
@@ -278,6 +279,7 @@ export function TalkPage() {
       {word && <WordPopover word={word.word} sentence={word.sentence} onClose={() => setWord(null)} />}
 
       {errorText && <div className="mx-auto mb-2 max-w-3xl px-5 text-center text-sm text-danger">{errorText}</div>}
+      {state.forcedPush && live && <div className="mx-auto mb-2 max-w-3xl px-5 text-center text-sm text-warn">{t('talk.noise.forcedPush')}</div>}
 
       <div className="mx-auto w-full max-w-3xl px-5 pb-6" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         {push && (

@@ -353,5 +353,11 @@
   "settings.micTest.asking": "マイクを要求しています…",
   "settings.micTest.listening": "聞いています… 何か話してください。レベル:",
   "settings.micTest.ok": "OK —",
-  "settings.micTest.fail": "失敗 —"
+  "settings.micTest.fail": "失敗 —",
+  "settings.micSensitivity": "マイク感度",
+  "settings.micSensitivity.help": "低 = 騒がしい場所（屋外・電車・イヤホンマイク）。周りの音よりはっきり大きい声だけ拾い、サーバー側も自信の無い聞き取りを捨てます。",
+  "settings.micSensitivity.high": "高（静かな部屋・小さい声）",
+  "settings.micSensitivity.normal": "普通",
+  "settings.micSensitivity.low": "低（騒がしい場所）",
+  "talk.noise.forcedPush": "マイクがノイズを拾い続けたので、この回は「タップして話す」に切り替えました。話すときにマイクをタップしてください。屋外では 設定 → マイク感度 を「低」にすると改善します。"
 }

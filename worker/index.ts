@@ -251,6 +251,8 @@ app.post('/api/transcribe', async (c) => {
   if (audio.size > 20 * 1024 * 1024) return c.json({ error: 'audio too large (max 20MB)' }, 413);
   // The AI's last line. Whisper decodes much better when it knows the question being answered.
   const context = String(form.get('context') ?? '').slice(0, 300);
+  // Noisy place (mic sensitivity 'low'): a stricter confidence gate on what Whisper returns.
+  const noisy = form.get('noisy') === '1';
   const prompt = context ? `${WHISPER_PROMPT} The other person just said: "${context}"` : WHISPER_PROMPT;
 
   // 1) Workers AI Whisper (default): free tier, no key, runs on Cloudflare.
@@ -270,7 +272,7 @@ app.post('/api/transcribe', async (c) => {
       })) as { text?: string; segments?: { no_speech_prob?: number; avg_logprob?: number }[] };
       const text = (out.text ?? '').trim();
       // Whisper invents subtitle boilerplate on clips without speech: drop those.
-      if (!text || looksHallucinated(text) || lowConfidence(out.segments)) {
+      if (!text || looksHallucinated(text) || lowConfidence(out.segments, noisy)) {
         return c.json({ text: '', engine: 'workers-ai', dropped: text || '(empty)', bytes: audio.size });
       }
       return c.json({ text, engine: 'workers-ai', bytes: audio.size, type: audio.type });

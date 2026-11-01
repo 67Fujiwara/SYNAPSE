@@ -353,5 +353,11 @@
   "settings.micTest.asking": "Asking for the microphone…",
   "settings.micTest.listening": "Listening… say something. Level:",
   "settings.micTest.ok": "OK —",
-  "settings.micTest.fail": "Failed —"
+  "settings.micTest.fail": "Failed —",
+  "settings.micSensitivity": "Mic sensitivity",
+  "settings.micSensitivity.help": "Low = noisy places (street, train, earphone mic outdoors): speech must stand well above the background and the server drops uncertain clips.",
+  "settings.micSensitivity.high": "High (quiet room, soft voice)",
+  "settings.micSensitivity.normal": "Normal",
+  "settings.micSensitivity.low": "Low (noisy place)",
+  "talk.noise.forcedPush": "The mic kept hearing noise, so this session switched to tap-to-talk. Tap the mic when you want to speak. For outdoors, set Settings → Mic sensitivity to Low."
 }

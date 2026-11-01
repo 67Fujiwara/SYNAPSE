@@ -1,4 +1,5 @@
 import type { RecognitionResult, Recognizer, VadOptions } from './types';
+import type { MicSensitivity } from '@shared/types';
 import { api } from '../api/client';
 
 /**
@@ -43,6 +44,20 @@ function takePrimedCtx(): AudioContext | null {
   return c;
 }
 
+/** Mic sensitivity presets (settings → speech input). 'low' is tuned for an earphone mic outdoors. */
+export const VAD_PRESETS: Record<MicSensitivity, Required<VadOptions>> = {
+  high: { minThreshold: 0.012, startFrames: 4, floorMult: 3, floorCap: 0.02, minVoicedMs: 500, maxMs: 45_000, strict: false },
+  normal: { minThreshold: 0.02, startFrames: 5, floorMult: 4, floorCap: 0.03, minVoicedMs: 600, maxMs: 45_000, strict: false },
+  // Street / train: speech must stand well above the ambient percentile and last longer,
+  // clips are capped so endless noise can't become a 45 s upload, and the server applies its strict gate.
+  low: { minThreshold: 0.05, startFrames: 8, floorMult: 4, floorCap: 0.1, minVoicedMs: 800, maxMs: 20_000, strict: true },
+};
+
+/** Frames (50 ms each) of unbroken loud sound after which it counts as ambient noise, not speech. */
+const STEADY_NOISE_FRAMES = 160;
+/** Frames (50 ms each) the noise-floor percentile looks back over: 2 s. */
+const FLOOR_WINDOW = 40;
+
 export class ServerRecognizer implements Recognizer {
   readonly supported: boolean;
   private rec: MediaRecorder | null = null;
@@ -59,6 +74,12 @@ export class ServerRecognizer implements Recognizer {
   private noiseFloor = 0.01;
   private minThreshold = 0.02;
   private startFrames = 5;
+  private floorMult = 4;
+  private floorCap = 0.03;
+  private hist: number[] = new Array<number>(FLOOR_WINDOW).fill(-1);
+  private histPos = 0;
+  private minVoicedMs = 600;
+  private strict = false;
   private muted = false;
   private discard = false; // drop the current clip in finish()
   private keepAlive = false;
@@ -93,6 +114,11 @@ export class ServerRecognizer implements Recognizer {
   setVad(opts: VadOptions) {
     if (opts.minThreshold !== undefined) this.minThreshold = opts.minThreshold;
     if (opts.startFrames !== undefined) this.startFrames = opts.startFrames;
+    if (opts.floorMult !== undefined) this.floorMult = opts.floorMult;
+    if (opts.floorCap !== undefined) this.floorCap = opts.floorCap;
+    if (opts.minVoicedMs !== undefined) this.minVoicedMs = opts.minVoicedMs;
+    if (opts.maxMs !== undefined) this.maxMs = opts.maxMs;
+    if (opts.strict !== undefined) this.strict = opts.strict;
   }
 
   /** End the current clip without sending it. A new clip starts if keepAlive is on. */
@@ -188,9 +214,15 @@ export class ServerRecognizer implements Recognizer {
       for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       const rms = Math.sqrt(sum / buf.length);
       // Adaptive floor: follow quiet levels slowly, never above a sane cap.
-      if (rms < this.noiseFloor) this.noiseFloor = this.noiseFloor * 0.9 + rms * 0.1;
-      else this.noiseFloor = Math.min(0.03, this.noiseFloor * 0.995 + rms * 0.005);
-      const threshold = Math.max(this.minThreshold, this.noiseFloor * 4);
+      // Noise floor = the 20th percentile of the last two seconds. Speech has pauses, so it leaves the
+      // percentile alone; a street or a train fills the window and lifts it (then speech must stand floorMult
+      // above it). A smoothed average would learn the voice itself and climb out of its own reach.
+      this.hist[this.histPos] = rms;
+      this.histPos = (this.histPos + 1) % FLOOR_WINDOW;
+      const sorted = this.hist.filter((v) => v >= 0).sort((a, b) => a - b);
+      const p20 = sorted.length ? sorted[Math.floor(sorted.length * 0.2)] : rms;
+      this.noiseFloor = Math.min(this.floorCap, p20);
+      const threshold = Math.max(this.minThreshold, this.noiseFloor * this.floorMult);
       this.levelCb(Math.min(1, rms / (threshold * 2)));
       const now = Date.now();
       if (this.muted) {
@@ -201,6 +233,18 @@ export class ServerRecognizer implements Recognizer {
         this.lastLoudAt = now;
         this.loudRun += 1;
         this.loudMs += 50;
+        // Speech breathes; sound that stays loud for 8 s straight is a street, a fan or a train.
+        // Learn it as the new floor and forget the "speech" it pretended to be.
+        if (this.loudRun >= STEADY_NOISE_FRAMES) {
+          this.hist.fill(rms);
+          this.noiseFloor = Math.min(this.floorCap, rms);
+          this.loudRun = 0;
+          this.speechAt = 0;
+          this.loudMs = 0;
+          this.discard = true;
+          this.endClip(); // a fresh clip starts (keepAlive) with the raised floor
+          return;
+        }
         // Speech starts only after sustained sound (startFrames x 50 ms), not on a click or a bump.
         if (!this.speechAt && this.loudRun >= this.startFrames) {
           this.speechAt = now;
@@ -240,7 +284,7 @@ export class ServerRecognizer implements Recognizer {
       return;
     }
     // Without VAD we trust the caller; with it we need real voiced time (>= 600 ms), not a cough.
-    const hadSpeech = !this.analyser || (this.speechAt > 0 && this.loudMs >= 600);
+    const hadSpeech = !this.analyser || (this.speechAt > 0 && this.loudMs >= this.minVoicedMs);
     const next = () => {
       if (this.wantListening && this.keepAlive) this.start();
       else this.releaseMic();
@@ -249,7 +293,7 @@ export class ServerRecognizer implements Recognizer {
     this.busy += 1;
     this.lastClip = blob;
     try {
-      const text = await api.transcribe(blob, this.context);
+      const text = await api.transcribe(blob, this.context, this.strict);
       this.onClip(blob, text);
       if (text) this.resultCb({ final: text, interim: '', clipStartedAt });
     } catch (e) {

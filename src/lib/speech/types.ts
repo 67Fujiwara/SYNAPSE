@@ -15,6 +15,16 @@ export interface VadOptions {
   minThreshold?: number;
   /** Consecutive loud 50 ms frames before "speech started" (default 5). */
   startFrames?: number;
+  /** Speech must be this many times louder than the running noise floor (default 4). */
+  floorMult?: number;
+  /** Highest value the noise floor may climb to (default 0.03). */
+  floorCap?: number;
+  /** Voiced time a clip needs before it is sent (default 600 ms). */
+  minVoicedMs?: number;
+  /** Longest clip (default 45 s). */
+  maxMs?: number;
+  /** Ask the server for its strict confidence gate (noisy place). */
+  strict?: boolean;
 }
 
 export interface Recognizer {

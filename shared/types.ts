@@ -10,6 +10,8 @@ export type MicMode = 'auto' | 'continuous' | 'push';
 export type SttEngine = 'browser' | 'server';
 /** Where speech is synthesized. 'server' = Deepgram Aura on Workers AI, played by the browser. */
 export type TtsEngine = 'browser' | 'server';
+/** How easily the mic decides "this is speech". 'low' is for noisy places (street, train, café). */
+export type MicSensitivity = 'high' | 'normal' | 'low';
 
 export interface Turn {
   id: string;
@@ -78,6 +80,7 @@ export interface Settings {
   /** Days to keep recordings in R2 before the nightly cleanup deletes them. */
   recordingDays: number;
   micMode: MicMode;
+  micSensitivity: MicSensitivity;
   sttEngine: SttEngine;
   /** Show a player for the last clip sent to the server (debugging recognition). */
   debugClips: boolean;
@@ -98,6 +101,7 @@ export const DEFAULT_SETTINGS: Settings = {
   saveRecordings: false,
   recordingDays: 30,
   micMode: 'auto',
+  micSensitivity: 'normal',
   sttEngine: 'server',
   debugClips: false,
 };

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage, Immersion, Mode, Session, SessionPayload, SttEngine, TtsEngine, Turn } from '@shared/types';
+import type { ChatMessage, Immersion, Mode, Session, SessionPayload, SttEngine, TtsEngine, Turn, MicSensitivity } from '@shared/types';
 import { api, streamChat } from '@/lib/api/client';
 import type { Recognizer } from '@/lib/speech/types';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
-import { ServerRecognizer } from '@/lib/speech/server-recognizer';
+import { ServerRecognizer, VAD_PRESETS } from '@/lib/speech/server-recognizer';
 import { makeSynthesizer } from '@/lib/speech/factory';
 import { SentenceChunker } from '@/lib/speech/sentences';
 import { computeMetrics, computeXp } from '@/lib/metrics';
@@ -43,6 +43,7 @@ export interface ConversationConfig {
   manualSend: boolean;
   /** Resolved mic mode ('auto' already turned into one of these by the caller). */
   micMode: 'continuous' | 'push';
+  micSensitivity: MicSensitivity;
   engine: SttEngine;
   /** Upload each of the learner's clips to R2 (server engine only). */
   saveRecordings: boolean;
@@ -57,6 +58,8 @@ export interface ConversationState {
   /** User text accumulated but not yet sent (final recognition results). */
   draft: string;
   error: string | null;
+  /** Set when noise kept the conversation going by itself: the session fell back to tap-to-talk. */
+  forcedPush: boolean;
   listening: boolean;
   /** Server engine: clip uploaded, waiting for the transcript. */
   transcribing: boolean;
@@ -71,8 +74,11 @@ export interface ConversationState {
 
 const STUCK_RE = /^(\s*(um+|uh+|er+|hmm+|ah+|eh+|えーと|あの|その)[,.\s]*)+$/i;
 
+const NOISE_STREAK = 3;
+
 const INITIAL: ConversationState = {
   phase: 'idle',
+  forcedPush: false,
   turns: [],
   interim: '',
   draft: '',
@@ -105,6 +111,9 @@ export function useConversation(cfg: ConversationConfig) {
   useEffect(() => {
     if (recognizer instanceof ServerRecognizer) recognizer.setSilence(cfg.silenceSec * 1000);
   }, [recognizer, cfg.silenceSec]);
+  useEffect(() => {
+    recognizer.setVad?.(VAD_PRESETS[cfg.micSensitivity]);
+  }, [recognizer, cfg.micSensitivity]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const synth = useMemo(() => makeSynthesizer(cfg.ttsEngine, cfg.serverVoice), [cfg.ttsEngine]);
 
@@ -124,6 +133,10 @@ export function useConversation(cfg: ConversationConfig) {
   const ttsGeneration = useRef(0);
   const jpHints = useRef(0);
   const pendingClip = useRef<{ blob: Blob; sec: number } | null>(null);
+  /** Consecutive user turns that look like noise (one or two words). */
+  const weakStreak = useRef(0);
+  const forcedPush = useRef(false);
+  const micMode = () => (forcedPush.current ? 'push' : cfgRef.current.micMode);
 
   const setPhase = (p: Phase) => {
     phaseRef.current = p;
@@ -157,7 +170,7 @@ export function useConversation(cfg: ConversationConfig) {
 
   /** Mic back on (continuous) or wait for a tap (push). */
   const resumeListening = () => {
-    if (cfgRef.current.micMode === 'push') {
+    if (micMode() === 'push') {
       recognizer.stop();
       setPhase('ready');
       return;
@@ -194,7 +207,15 @@ export function useConversation(cfg: ConversationConfig) {
       const sec = Math.max(0, (Date.parse(endedAt) - Date.parse(startedAt)) / 1000);
       void api.uploadRecording(clip.blob, userTurn.id, sessionId.current, Math.round(sec * 10) / 10).catch(() => {});
     }
-    setState((s) => ({ ...s, words: s.words + text.split(/\s+/).filter(Boolean).length }));
+    const n = text.split(/\s+/).filter(Boolean).length;
+    setState((s) => ({ ...s, words: s.words + n }));
+    // Noise safety net: an always-on mic that keeps "hearing" one or two words is picking up the street,
+    // not the learner. After three in a row, stop listening by itself and wait for a tap.
+    weakStreak.current = n <= 2 ? weakStreak.current + 1 : 0;
+    if (weakStreak.current >= NOISE_STREAK && micMode() === 'continuous') {
+      forcedPush.current = true;
+      setState((s) => ({ ...s, forcedPush: true }));
+    }
 
     // Learner is stuck on fillers: nudge locally, no round-trip.
     if (STUCK_RE.test(text)) {
@@ -324,7 +345,7 @@ export function useConversation(cfg: ConversationConfig) {
       const msg = code === 'not-allowed' || code === 'service-not-allowed' ? 'mic-denied' : code === 'network' ? 'Speech recognition network error' : code;
       setState((s) => ({ ...s, error: msg, transcribing: false, userSpeaking: false }));
       // A failed clip in push mode: go back to waiting for a tap.
-      if (cfgRef.current.micMode === 'push' && phase() === 'listening') {
+      if (micMode() === 'push' && phase() === 'listening') {
         recognizer.stop();
         setPhase('ready');
       }

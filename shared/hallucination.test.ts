@@ -25,3 +25,16 @@ describe('lowConfidence', () => {
     expect(lowConfidence(undefined)).toBe(false);
   });
 });
+
+describe('lowConfidence strict (noisy place)', () => {
+  it('drops a clip Whisper is only half sure about, which the normal gate keeps', () => {
+    const segs = [{ no_speech_prob: 0.45, avg_logprob: -0.5 }];
+    expect(lowConfidence(segs)).toBe(false);
+    expect(lowConfidence(segs, true)).toBe(true);
+  });
+  it('keeps a confident clip in both modes', () => {
+    const segs = [{ no_speech_prob: 0.05, avg_logprob: -0.3 }];
+    expect(lowConfidence(segs)).toBe(false);
+    expect(lowConfidence(segs, true)).toBe(false);
+  });
+});

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { WebSpeechRecognizer } from '@/lib/speech/recognition';
-import { ServerRecognizer } from '@/lib/speech/server-recognizer';
+import { ServerRecognizer, VAD_PRESETS } from '@/lib/speech/server-recognizer';
 import type { Recognizer } from '@/lib/speech/types';
 import { align, timingBonus, type AlignResult } from '@/lib/align';
 import { wordCount } from '@/lib/metrics';
@@ -57,6 +57,9 @@ export function Practice({
     () => (settings.sttEngine === 'server' ? new ServerRecognizer() : new WebSpeechRecognizer('en-US')),
     [settings.sttEngine],
   );
+  useEffect(() => {
+    recognizer.setVad?.(VAD_PRESETS[settings.micSensitivity]);
+  }, [recognizer, settings.micSensitivity]);
 
   // Reset when the sentence changes.
   useEffect(() => {

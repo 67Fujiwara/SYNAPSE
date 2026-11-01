@@ -6,7 +6,7 @@ import { useT } from '@/i18n';
 import { useSettings } from './SettingsProvider';
 import { api, getToken, setToken } from '@/lib/api/client';
 import { WebSpeechSynthesizer } from '@/lib/speech/synthesis';
-import type { Immersion, MicMode, SttEngine, TtsEngine, UiLang } from '@shared/types';
+import type { Immersion, MicMode, MicSensitivity, SttEngine, TtsEngine, UiLang } from '@shared/types';
 import { AURA_VOICES } from '@shared/voices';
 import { makeSynthesizer } from '@/lib/speech/factory';
 import { Volume2 } from 'lucide-react';
@@ -274,6 +274,13 @@ export function SettingsPage() {
 
       <Card className="divide-y divide-line/70">
         <h2 className="pb-1 font-display text-base font-semibold">{t('settings.speech')}</h2>
+        <Row label={t('settings.micSensitivity')} help={t('settings.micSensitivity.help')}>
+          <select value={settings.micSensitivity} onChange={(e) => update({ micSensitivity: e.target.value as MicSensitivity })} className="max-w-[320px]">
+            <option value="high">{t('settings.micSensitivity.high')}</option>
+            <option value="normal">{t('settings.micSensitivity.normal')}</option>
+            <option value="low">{t('settings.micSensitivity.low')}</option>
+          </select>
+        </Row>
         <Row label={t('settings.micMode')}>
           <select value={settings.micMode} onChange={(e) => update({ micMode: e.target.value as MicMode })} className="max-w-[320px]">
             <option value="auto">{t('settings.micMode.auto')}</option>

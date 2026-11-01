@@ -39,9 +39,10 @@ export function looksHallucinated(text: string): boolean {
 }
 
 /** Drop transcripts whose segments Whisper itself flags as probably not speech. */
-export function lowConfidence(segments: { no_speech_prob?: number; avg_logprob?: number }[] | undefined): boolean {
+export function lowConfidence(segments: { no_speech_prob?: number; avg_logprob?: number }[] | undefined, strict = false): boolean {
   if (!segments || segments.length === 0) return false;
   const noSpeech = segments.reduce((a, s) => a + (s.no_speech_prob ?? 0), 0) / segments.length;
   const logprob = segments.reduce((a, s) => a + (s.avg_logprob ?? 0), 0) / segments.length;
-  return noSpeech > 0.6 || logprob < -1.0;
+  // Strict (noisy place): Whisper must be fairly sure it heard speech, not traffic.
+  return strict ? noSpeech > 0.35 || logprob < -0.8 : noSpeech > 0.6 || logprob < -1.0;
 }
